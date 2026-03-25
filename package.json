@@ -1,0 +1,19 @@
+{
+  "name": "ctu-admission-portal",
+  "version": "1.0.0",
+  "description": "CTU Daanbantayan Campus Admission Portal",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names backend,mobile --prefix-colors blue,magenta \"npm run dev:backend\" \"npm run dev:mobile\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:mobile": "cd mobile && npx expo start",
+    "install:all": "cd backend && npm install && cd ../mobile && npm install",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "dependencies": {
+    "expo-notifications": "^55.0.10"
+  }
+}
