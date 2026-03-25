@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "CTU Admission Portal",
+    "slug": "ctu-admission-portal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/ctu.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "splash": {
+      "image": "./assets/ctu.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/ctu.png",
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.ctu.admissionportal",
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/ctu.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "391b92ec-e893-4153-9ea5-89c496dbb8ab"
+      }
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}
