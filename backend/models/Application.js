@@ -13,9 +13,43 @@ const applicationSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'reviewing', 'accepted', 'rejected'],
+    enum: ['pending', 'reviewing', 'approved', 'rejected'],
     default: 'pending'
   },
+  remarks: {
+    type: String,
+    default: ''
+  },
+  reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  reviewedAt: {
+    type: Date
+  },
+  stages: {
+    application: { type: String, enum: ['completed', 'pending'], default: 'completed' },
+    screening: { type: String, enum: ['completed', 'pending'], default: 'pending' },
+    exam: { type: String, enum: ['completed', 'pending'], default: 'pending' },
+    interview: { type: String, enum: ['completed', 'pending'], default: 'pending' },
+    enrollment: { type: String, enum: ['completed', 'pending'], default: 'pending' },
+    idIssuance: { type: String, enum: ['completed', 'pending'], default: 'pending' },
+  },
+  examDetails: [{
+    type: String
+  }],
+  interviewDetails: [{
+    type: String
+  }],
+  enrollmentDetails: [{
+    type: String
+  }],
+  idDetails: [{
+    type: String
+  }],
+  disqualificationReasons: [{
+    type: String
+  }],
   personalInfo: {
     firstName: { type: String, default: '' },
     middleName: { type: String, default: '' },
@@ -36,6 +70,14 @@ const applicationSchema = new mongoose.Schema({
       province: { type: String, default: '' },
       zipCode: { type: String, default: '' }
     }
+  },
+  programData: {
+    category: { type: String, default: '' },
+    college: { type: String, default: '' },
+    session: { type: String, default: '' },
+    gwa: { type: String, default: '' },
+    course: { type: String, default: '' },
+    courseName: { type: String, default: '' }
   },
   educationalBackground: {
     lastSchoolAttended: { type: String, default: '' },
@@ -88,6 +130,10 @@ const applicationSchema = new mongoose.Schema({
   documentsAcknowledged: {
     type: Boolean,
     default: false
+  },
+  documents: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   submittedAt: {
     type: Date

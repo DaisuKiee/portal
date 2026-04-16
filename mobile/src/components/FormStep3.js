@@ -18,6 +18,13 @@ const FormStep3 = ({ data, onUpdate }) => {
 
   const requiredDocuments = [
     {
+      id: 'idPhoto',
+      title: '2x2 ID Photo',
+      description: 'Recent photo with white background (REQUIRED)',
+      icon: 'camera',
+      required: true,
+    },
+    {
       id: 'birthCertificate',
       title: 'Birth Certificate',
       description: 'PSA-issued birth certificate (original or certified true copy)',
@@ -36,13 +43,6 @@ const FormStep3 = ({ data, onUpdate }) => {
       title: 'Certificate of Good Moral',
       description: 'From previous school attended',
       icon: 'ribbon',
-      required: true,
-    },
-    {
-      id: 'idPhoto',
-      title: '2x2 ID Photo',
-      description: 'Recent photo with white background',
-      icon: 'camera',
       required: true,
     },
     {
@@ -100,11 +100,13 @@ const FormStep3 = ({ data, onUpdate }) => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
+        base64: true, // Get base64 data
       });
 
       if (!result.canceled) {
         updateDocument(docId, {
           uri: result.assets[0].uri,
+          base64: result.assets[0].base64, // Store base64 for web display
           name: `${docId}_${Date.now()}.jpg`,
           type: 'image/jpeg',
           size: result.assets[0].fileSize,
@@ -130,11 +132,13 @@ const FormStep3 = ({ data, onUpdate }) => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
+        base64: true, // Get base64 data
       });
 
       if (!result.canceled) {
         updateDocument(docId, {
           uri: result.assets[0].uri,
+          base64: result.assets[0].base64, // Store base64 for web display
           name: `${docId}_${Date.now()}.jpg`,
           type: 'image/jpeg',
           size: result.assets[0].fileSize,

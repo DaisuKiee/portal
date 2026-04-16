@@ -3,7 +3,7 @@
 
 export const API_CONFIG = {
   // Backend server URL
-  BASE_URL: 'http://192.168.96.235:5000/api',
+  BASE_URL: 'http://192.168.100.12:5000/api',
   
   // Request timeout in milliseconds
   TIMEOUT: 30000,

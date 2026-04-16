@@ -6,7 +6,6 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  Image,
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
@@ -18,7 +17,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../styles/theme';
+import { COLORS, FONTS, SIZES } from '../styles/theme';
 import { feedAPI, notificationAPI } from '../services/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -47,10 +46,27 @@ const FeedScreen = ({ navigation, route }) => {
   useEffect(() => {
     loadPosts();
     loadUserData();
-    loadUnreadCount();
     
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(loadUnreadCount, 30000);
+    // Load unread count with error suppression
+    const loadNotifications = async () => {
+      try {
+        if (notificationAPI && notificationAPI.getUnreadCount) {
+          await loadUnreadCount();
+        }
+      } catch (err) {
+        // Suppress all notification errors
+      }
+    };
+    
+    loadNotifications();
+    
+    // Poll for notifications every 30 seconds
+    const interval = setInterval(() => {
+      loadNotifications().catch(() => {
+        // Suppress polling errors
+      });
+    }, 30000);
+    
     return () => clearInterval(interval);
   }, []);
 
@@ -68,9 +84,13 @@ const FeedScreen = ({ navigation, route }) => {
   const loadUnreadCount = async () => {
     try {
       const response = await notificationAPI.getUnreadCount();
-      setUnreadCount(response.data.count);
+      if (response && response.data && typeof response.data.count === 'number') {
+        setUnreadCount(response.data.count);
+      }
     } catch (error) {
-      console.error('Error loading unread count:', error);
+      // Silently fail - notification count is not critical
+      setUnreadCount(0);
+      return Promise.resolve(); // Resolve to prevent error propagation
     }
   };
 
@@ -234,74 +254,112 @@ const FeedScreen = ({ navigation, route }) => {
     const commentCount = item.comments.length;
 
     return (
-      <View style={styles.postCard}>
-        {/* Post Header */}
+      <View style={styles.postContainer}>
+        {/* Pinned Badge */}
+        {item.isPinned && (
+          <View style={styles.pinnedBanner}>
+            <Ionicons name="pin" size={14} color={COLORS.primary} />
+            <Text style={styles.pinnedText}>Pinned by Admin</Text>
+          </View>
+        )}
+        
+        {/* Post Header - Threads Style */}
         <View style={styles.postHeader}>
-          <View style={styles.authorAvatar}>
-            <Ionicons name="person" size={24} color={COLORS.primary} />
-          </View>
-          <View style={styles.authorInfo}>
-            <View style={styles.authorNameRow}>
-              <Text style={styles.authorName}>{item.author.name}</Text>
-              {item.author.role && (
-                <View style={styles.roleBadge}>
-                  <Text style={styles.roleBadgeText}>{item.author.role}</Text>
-                </View>
-              )}
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {item.author.name.charAt(0).toUpperCase()}
+              </Text>
             </View>
-            <Text style={styles.timestamp}>{item.timestamp}</Text>
+          </View>
+          
+          <View style={styles.postMain}>
+            <View style={styles.postTopRow}>
+              <View style={styles.authorNameRow}>
+                <Text style={styles.authorName}>{item.author.name}</Text>
+                {item.author.role && (
+                  <View style={styles.roleBadge}>
+                    <Text style={styles.roleText}>{item.author.role}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.timestamp}>{item.timestamp}</Text>
+            </View>
+            
+            <Text style={styles.postContent}>{item.content}</Text>
+            
+            {/* Action Buttons - Threads Style */}
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => toggleComments(item.id)}
+                activeOpacity={0.6}
+              >
+                <Ionicons
+                  name={isCommentsExpanded ? "chatbubble" : "chatbubble-outline"}
+                  size={20}
+                  color={COLORS.secondary}
+                />
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6}>
+                <Ionicons name="heart-outline" size={20} color={COLORS.secondary} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6}>
+                <Ionicons name="paper-plane-outline" size={20} color={COLORS.secondary} />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Comment Count */}
+            {commentCount > 0 && (
+              <TouchableOpacity
+                onPress={() => toggleComments(item.id)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.commentCount}>
+                  {commentCount} {commentCount === 1 ? 'reply' : 'replies'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
-        {/* Post Content */}
-        <Text style={styles.postContent}>{item.content}</Text>
-
-        {/* Post Actions */}
-        <View style={styles.postActions}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => toggleComments(item.id)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={isCommentsExpanded ? 'chatbubble' : 'chatbubble-outline'}
-              size={20}
-              color={COLORS.primary}
-            />
-            <Text style={styles.actionText}>
-              {commentCount} {commentCount === 1 ? 'Comment' : 'Comments'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Comments Section */}
+        {/* Comments Section - Threads Style */}
         {isCommentsExpanded && (
-          <View style={styles.commentsSection}>
-            {/* Existing Comments */}
+          <View style={styles.commentsContainer}>
             {item.comments.map((comment) => (
-              <View key={comment.id} style={styles.commentItem}>
-                <View style={styles.commentAvatar}>
-                  <Ionicons name="person-circle" size={32} color={COLORS.mediumGray} />
-                </View>
-                <View style={styles.commentContent}>
-                  <View style={styles.commentBubble}>
-                    <Text style={styles.commentAuthor}>{comment.author}</Text>
-                    <Text style={styles.commentText}>{comment.content}</Text>
+              <View key={comment.id} style={styles.commentRow}>
+                <View style={styles.commentAvatarContainer}>
+                  <View style={styles.commentAvatar}>
+                    <Text style={styles.commentAvatarText}>
+                      {comment.author.charAt(0).toUpperCase()}
+                    </Text>
                   </View>
-                  <Text style={styles.commentTimestamp}>{comment.timestamp}</Text>
+                </View>
+                
+                <View style={styles.commentMain}>
+                  <View style={styles.commentTopRow}>
+                    <Text style={styles.commentAuthor}>{comment.author}</Text>
+                    <Text style={styles.commentTimestamp}>{comment.timestamp}</Text>
+                  </View>
+                  <Text style={styles.commentText}>{comment.content}</Text>
                 </View>
               </View>
             ))}
 
-            {/* Add Comment Input */}
-            <View style={styles.addCommentContainer}>
-              <View style={styles.commentInputAvatar}>
-                <Ionicons name="person-circle" size={32} color={COLORS.primary} />
+            {/* Add Comment Input - Threads Style */}
+            <View style={styles.replyRow}>
+              <View style={styles.replyAvatarContainer}>
+                <View style={styles.replyAvatar}>
+                  <Ionicons name="person" size={16} color={COLORS.primary} />
+                </View>
               </View>
-              <View style={styles.commentInputWrapper}>
+              
+              <View style={styles.replyInputContainer}>
                 <TextInput
-                  style={styles.commentInput}
-                  placeholder="Write a comment..."
+                  style={styles.replyInput}
+                  placeholder="Reply..."
                   placeholderTextColor={COLORS.mediumGray}
                   value={commentText[item.id] || ''}
                   onChangeText={(text) =>
@@ -310,26 +368,27 @@ const FeedScreen = ({ navigation, route }) => {
                   multiline
                   maxLength={500}
                 />
-                <TouchableOpacity
-                  style={[
-                    styles.sendButton,
-                    (!commentText[item.id]?.trim() || submittingComment === item.id) &&
-                      styles.sendButtonDisabled,
-                  ]}
-                  onPress={() => handleAddComment(item.id)}
-                  disabled={!commentText[item.id]?.trim() || submittingComment === item.id}
-                  activeOpacity={0.7}
-                >
-                  {submittingComment === item.id ? (
-                    <ActivityIndicator size="small" color={COLORS.white} />
-                  ) : (
-                    <Ionicons name="send" size={18} color={COLORS.white} />
-                  )}
-                </TouchableOpacity>
+                {commentText[item.id]?.trim() && (
+                  <TouchableOpacity
+                    style={styles.replyButton}
+                    onPress={() => handleAddComment(item.id)}
+                    disabled={submittingComment === item.id}
+                    activeOpacity={0.7}
+                  >
+                    {submittingComment === item.id ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                    ) : (
+                      <Ionicons name="arrow-up-circle" size={28} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
         )}
+        
+        {/* Divider */}
+        <View style={styles.postDivider} />
       </View>
     );
   };
@@ -338,68 +397,68 @@ const FeedScreen = ({ navigation, route }) => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading posts...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header - Threads Style */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.menuButton}
+          style={styles.headerButton}
           onPress={toggleDrawer}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <Ionicons name="menu" size={24} color={COLORS.white} />
+          <Ionicons name="menu" size={26} color={COLORS.secondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Community Feed</Text>
+        
+        <Text style={styles.headerTitle}>CTU Community</Text>
+        
         <TouchableOpacity
-          style={styles.notificationButton}
+          style={styles.headerButton}
           onPress={() => navigation.navigate('Notifications')}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <Ionicons name="notifications" size={24} color={COLORS.white} />
-          {unreadCount > 0 && (
-            <View style={styles.headerNotificationBadge}>
-              <Text style={styles.headerNotificationBadgeText}>
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </Text>
-            </View>
-          )}
+          <Ionicons name="heart-outline" size={26} color={COLORS.secondary} />
+          {unreadCount > 0 && <View style={styles.notificationDot} />}
         </TouchableOpacity>
       </View>
 
-      {/* Welcome Banner - shown after submission */}
+      {/* What's New Bar - Threads Style */}
+      <TouchableOpacity
+        style={styles.whatsNewBar}
+        onPress={() => setShowCreatePost(true)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.whatsNewAvatar}>
+          <Text style={styles.whatsNewAvatarText}>
+            {userData?.fullName?.charAt(0).toUpperCase() || 'U'}
+          </Text>
+        </View>
+        <Text style={styles.whatsNewText}>What's new?</Text>
+      </TouchableOpacity>
+
+      {/* Welcome Banner */}
       {showWelcome && trackingCode && (
         <View style={styles.welcomeBanner}>
           <View style={styles.welcomeContent}>
-            <Ionicons name="checkmark-circle" size={32} color={COLORS.success} />
+            <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
             <View style={styles.welcomeText}>
-              <Text style={styles.welcomeTitle}>Welcome to CTU Community!</Text>
+              <Text style={styles.welcomeTitle}>Application Submitted!</Text>
               <Text style={styles.welcomeSubtitle}>
-                Your application has been submitted. Tracking code: {trackingCode}
+                Track your application with code: {trackingCode}
               </Text>
             </View>
           </View>
-          <View style={styles.welcomeActions}>
-            <TouchableOpacity
-              style={styles.trackingButton}
-              onPress={() => navigation.navigate('Tracking', { trackingCode })}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="search" size={16} color={COLORS.primary} />
-              <Text style={styles.trackingButtonText}>Track Application</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.dismissButton}
-              onPress={() => setShowWelcome(false)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="close" size={20} color={COLORS.mediumGray} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.welcomeClose}
+            onPress={() => setShowWelcome(false)}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="close" size={20} color={COLORS.mediumGray} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -417,40 +476,14 @@ const FeedScreen = ({ navigation, route }) => {
             tintColor={COLORS.primary}
           />
         }
-        ListHeaderComponent={
-          <>
-            {/* Create Post Quick Access */}
-            <View style={styles.createPostQuick}>
-              <View style={styles.quickPostAvatar}>
-                <Ionicons name="person" size={20} color={COLORS.primary} />
-              </View>
-              <TouchableOpacity
-                style={styles.quickPostInput}
-                onPress={() => setShowCreatePost(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.quickPostPlaceholder}>What's on your mind?</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.quickPostButton}
-                onPress={() => setShowCreatePost(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="image-outline" size={24} color={COLORS.primary} />
-              </TouchableOpacity>
-            </View>
-            
-            {/* Divider */}
-            <View style={styles.feedDivider} />
-          </>
-        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={64} color={COLORS.mediumGray} />
             <Text style={styles.emptyText}>No posts yet</Text>
-            <Text style={styles.emptySubtext}>Be the first to post!</Text>
+            <Text style={styles.emptySubtext}>Be the first to start a conversation</Text>
           </View>
         }
+        showsVerticalScrollIndicator={false}
       />
 
       {/* Drawer Navigation */}
@@ -467,44 +500,47 @@ const FeedScreen = ({ navigation, route }) => {
             ]}
             onStartShouldSetResponder={() => true}
           >
-            {/* Drawer Header */}
             <View style={styles.drawerHeader}>
-              <Text style={styles.drawerHeaderTitle}>Menu</Text>
+              <Text style={styles.drawerHeaderTitle}>Feeds</Text>
               <View style={styles.drawerHeaderIcons}>
-                <TouchableOpacity 
-                  style={styles.drawerHeaderIcon}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('NotificationSettings'), 300);
-                  }}
-                >
-                  <Ionicons name="settings-outline" size={24} color={COLORS.white} />
+                <TouchableOpacity style={styles.drawerHeaderIcon} activeOpacity={0.6}>
+                  <Ionicons name="add-circle-outline" size={24} color={COLORS.white} />
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.drawerHeaderIcon}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Tracking', { trackingCode }), 300);
-                  }}
-                >
-                  <Ionicons name="search-outline" size={24} color={COLORS.white} />
+                <TouchableOpacity style={styles.drawerHeaderIcon} activeOpacity={0.6}>
+                  <Ionicons name="create-outline" size={24} color={COLORS.white} />
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.drawerHeaderIcon}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Notifications'), 300);
-                  }}
-                >
-                  <Ionicons name="notifications-outline" size={24} color={COLORS.white} />
-                  {unreadCount > 0 && (
-                    <View style={styles.headerNotificationDot} />
-                  )}
+                <TouchableOpacity onPress={toggleDrawer}>
+                  <Ionicons name="close" size={28} color={COLORS.white} />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* User Profile Section */}
+            {/* Feed Filter Icons */}
+            <View style={styles.feedFilters}>
+              <TouchableOpacity style={styles.filterIcon} activeOpacity={0.6}>
+                <Ionicons name="heart-outline" size={24} color={COLORS.secondary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.filterIcon} activeOpacity={0.6}>
+                <Ionicons name="bookmark-outline" size={24} color={COLORS.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Feed Options */}
+            <View style={styles.feedOptions}>
+              <TouchableOpacity style={styles.feedOption} activeOpacity={0.7}>
+                <Text style={styles.feedOptionText}>For you</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.feedOption} activeOpacity={0.7}>
+                <Text style={styles.feedOptionText}>Recent</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.feedOption} activeOpacity={0.7}>
+                <Text style={styles.feedOptionText}>Saved posts</Text>
+                <Ionicons name="bookmark-outline" size={18} color={COLORS.secondary} style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.drawerDivider} />
+
             <TouchableOpacity
               style={styles.drawerProfile}
               onPress={() => {
@@ -519,104 +555,78 @@ const FeedScreen = ({ navigation, route }) => {
               <Text style={styles.drawerProfileName}>
                 {userData?.fullName || 'Student'}
               </Text>
-              <Ionicons name="chevron-down" size={20} color={COLORS.mediumGray} />
+              <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
             </TouchableOpacity>
 
-            {/* Menu Grid */}
             <View style={styles.drawerMenu}>
-              <View style={styles.menuGrid}>
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.info + '20' }]}>
-                    <Ionicons name="chatbubbles" size={28} color={COLORS.info} />
-                  </View>
-                  <Text style={styles.menuItemText}>Feed</Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.drawerItem}
+                onPress={() => {
+                  toggleDrawer();
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="chatbubbles" size={24} color={COLORS.secondary} />
+                <Text style={styles.drawerItemText}>Feed</Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Tracking', { trackingCode }), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.primary + '20' }]}>
-                    <Ionicons name="search" size={28} color={COLORS.primary} />
-                  </View>
-                  <Text style={styles.menuItemText}>Track Application</Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.drawerItem}
+                onPress={() => {
+                  toggleDrawer();
+                  setTimeout(() => navigation.navigate('Tracking', { trackingCode }), 300);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="search" size={24} color={COLORS.secondary} />
+                <Text style={styles.drawerItemText}>Track Application</Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Profile'), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.success + '20' }]}>
-                    <Ionicons name="person" size={28} color={COLORS.success} />
-                  </View>
-                  <Text style={styles.menuItemText}>Profile</Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.drawerItem}
+                onPress={() => {
+                  toggleDrawer();
+                  setTimeout(() => navigation.navigate('Profile'), 300);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="person" size={24} color={COLORS.secondary} />
+                <Text style={styles.drawerItemText}>Profile</Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.warning + '20' }]}>
-                    <Ionicons name="bookmark" size={28} color={COLORS.warning} />
+              <TouchableOpacity
+                style={styles.drawerItem}
+                onPress={() => {
+                  toggleDrawer();
+                  setTimeout(() => navigation.navigate('Notifications'), 300);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="notifications" size={24} color={COLORS.secondary} />
+                <Text style={styles.drawerItemText}>Notifications</Text>
+                {unreadCount > 0 && (
+                  <View style={styles.drawerBadge}>
+                    <Text style={styles.drawerBadgeText}>{unreadCount}</Text>
                   </View>
-                  <Text style={styles.menuItemText}>Saved</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Notifications'), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.error + '20', position: 'relative' }]}>
-                    <Ionicons name="notifications" size={28} color={COLORS.error} />
-                    {unreadCount > 0 && (
-                      <View style={styles.menuNotificationBadge}>
-                        <Text style={styles.menuNotificationBadgeText}>
-                          {unreadCount > 9 ? '9+' : unreadCount}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.menuItemText}>Notifications</Text>
-                </TouchableOpacity>
-              </View>
+                )}
+              </TouchableOpacity>
 
               <View style={styles.drawerDivider} />
 
               <TouchableOpacity
-                style={styles.drawerLogoutItem}
+                style={styles.drawerItem}
                 onPress={handleLogout}
                 activeOpacity={0.7}
               >
                 <Ionicons name="log-out-outline" size={24} color={COLORS.error} />
-                <Text style={styles.drawerLogoutText}>Logout</Text>
+                <Text style={[styles.drawerItemText, { color: COLORS.error }]}>Logout</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
         </TouchableOpacity>
       )}
 
-      {/* Create Post Modal */}
+      {/* Create Post Modal - Threads Style */}
       <Modal
         visible={showCreatePost}
         transparent={true}
@@ -637,32 +647,51 @@ const FeedScreen = ({ navigation, route }) => {
               onPress={(e) => e.stopPropagation()}
               style={styles.createPostModal}
             >
-              {/* Modal Header */}
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Create Post</Text>
                 <TouchableOpacity
                   onPress={() => setShowCreatePost(false)}
-                  style={styles.modalCloseButton}
-                  activeOpacity={0.7}
+                  activeOpacity={0.6}
                 >
-                  <Ionicons name="close" size={28} color={COLORS.mediumGray} />
+                  <Text style={styles.modalCancel}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.modalTitle}>New Post</Text>
+                
+                <TouchableOpacity
+                  onPress={handleCreatePost}
+                  disabled={!newPostContent.trim() || submittingPost}
+                  activeOpacity={0.6}
+                >
+                  {submittingPost ? (
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.modalPost,
+                        !newPostContent.trim() && styles.modalPostDisabled,
+                      ]}
+                    >
+                      Post
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </View>
 
-              {/* Post Input */}
               <View style={styles.createPostContent}>
-                <View style={styles.postAuthorInfo}>
-                  <View style={styles.postAuthorAvatar}>
-                    <Ionicons name="person" size={20} color={COLORS.primary} />
+                <View style={styles.createPostHeader}>
+                  <View style={styles.createPostAvatar}>
+                    <Text style={styles.createPostAvatarText}>
+                      {userData?.fullName?.charAt(0).toUpperCase() || 'U'}
+                    </Text>
                   </View>
-                  <Text style={styles.postAuthorName}>
+                  <Text style={styles.createPostName}>
                     {userData?.fullName || 'Student'}
                   </Text>
                 </View>
 
                 <TextInput
-                  style={styles.postInput}
-                  placeholder="Ask a question about admissions..."
+                  style={styles.createPostInput}
+                  placeholder="Start a feed..."
                   placeholderTextColor={COLORS.mediumGray}
                   value={newPostContent}
                   onChangeText={setNewPostContent}
@@ -671,40 +700,77 @@ const FeedScreen = ({ navigation, route }) => {
                   autoFocus
                 />
 
+                {/* Media Attachment Icons - Threads Style */}
+                <View style={styles.mediaAttachments}>
+                  <TouchableOpacity style={styles.mediaButton} activeOpacity={0.6}>
+                    <Ionicons name="image-outline" size={22} color={COLORS.mediumGray} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.mediaButton} activeOpacity={0.6}>
+                    <Ionicons name="videocam-outline" size={22} color={COLORS.mediumGray} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.mediaButton} activeOpacity={0.6}>
+                    <Ionicons name="musical-notes-outline" size={22} color={COLORS.mediumGray} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.mediaButton} activeOpacity={0.6}>
+                    <Ionicons name="bar-chart-outline" size={22} color={COLORS.mediumGray} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.mediaButton} activeOpacity={0.6}>
+                    <Ionicons name="ellipsis-horizontal" size={22} color={COLORS.mediumGray} />
+                  </TouchableOpacity>
+                </View>
+
                 <Text style={styles.charCount}>
                   {newPostContent.length}/1000
                 </Text>
-              </View>
-
-              {/* Modal Actions */}
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setShowCreatePost(false)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.postButton,
-                    (!newPostContent.trim() || submittingPost) && styles.postButtonDisabled,
-                  ]}
-                  onPress={handleCreatePost}
-                  disabled={!newPostContent.trim() || submittingPost}
-                  activeOpacity={0.7}
-                >
-                  {submittingPost ? (
-                    <ActivityIndicator size="small" color={COLORS.white} />
-                  ) : (
-                    <Text style={styles.postButtonText}>Post</Text>
-                  )}
-                </TouchableOpacity>
               </View>
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Bottom Tab Navigation - Threads Style */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={styles.bottomNavItem}
+          onPress={() => {}}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="home" size={26} color={COLORS.secondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavItem}
+          onPress={() => navigation.navigate('Tracking', { trackingCode })}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="search-outline" size={26} color={COLORS.secondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavItemCenter}
+          onPress={() => setShowCreatePost(true)}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="add" size={32} color={COLORS.secondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavItem}
+          onPress={() => navigation.navigate('Notifications')}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="heart-outline" size={26} color={COLORS.secondary} />
+          {unreadCount > 0 && <View style={styles.bottomNavDot} />}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavItem}
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="person-outline" size={26} color={COLORS.secondary} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -712,117 +778,13 @@ const FeedScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.ultraLightGray,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.secondary,
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: SIZES.md,
-    ...SHADOWS.medium,
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    color: COLORS.white,
-    ...FONTS.bold,
-  },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  headerNotificationBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: COLORS.error,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-  },
-  headerNotificationBadgeText: {
-    fontSize: 9,
-    color: COLORS.white,
-    ...FONTS.bold,
-  },
-  welcomeBanner: {
-    backgroundColor: COLORS.success + '10',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.success + '30',
-    padding: SIZES.md,
-  },
-  welcomeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  welcomeText: {
-    flex: 1,
-  },
-  welcomeTitle: {
-    fontSize: 16,
-    color: COLORS.success,
-    ...FONTS.bold,
-    marginBottom: 4,
-  },
-  welcomeSubtitle: {
-    fontSize: 13,
-    color: COLORS.secondary,
-    ...FONTS.regular,
-    lineHeight: 18,
-  },
-  welcomeActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  trackingButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: COLORS.white,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  trackingButtonText: {
-    fontSize: 14,
-    color: COLORS.primary,
-    ...FONTS.semiBold,
-  },
-  dismissButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 8,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.ultraLightGray,
+    backgroundColor: COLORS.white,
   },
   loadingText: {
     marginTop: 12,
@@ -830,110 +792,178 @@ const styles = StyleSheet.create({
     color: COLORS.mediumGray,
     ...FONTS.regular,
   },
-  feedList: {
-    paddingBottom: 80,
-  },
-  createPostQuick: {
+  // Header - Threads Style
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
     backgroundColor: COLORS.white,
-    padding: 12,
-    gap: 10,
-    ...SHADOWS.small,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.lightGray,
   },
-  quickPostAvatar: {
+  headerButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  headerTitle: {
+    fontSize: 18,
+    color: COLORS.secondary,
+    ...FONTS.bold,
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.error,
+  },
+  // What's New Bar - Threads Style
+  whatsNewBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.lightGray,
+    gap: 12,
+  },
+  whatsNewAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quickPostInput: {
-    flex: 1,
-    backgroundColor: COLORS.ultraLightGray,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.lightGray,
+  whatsNewAvatarText: {
+    fontSize: 16,
+    color: COLORS.primary,
+    ...FONTS.bold,
   },
-  quickPostPlaceholder: {
+  whatsNewText: {
     fontSize: 15,
     color: COLORS.mediumGray,
     ...FONTS.regular,
   },
-  quickPostButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
+  // Welcome Banner
+  welcomeBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.success + '10',
+    padding: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.success + '30',
   },
-  feedDivider: {
-    height: 8,
-    backgroundColor: COLORS.ultraLightGray,
+  welcomeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
   },
-  postCard: {
+  welcomeText: {
+    flex: 1,
+  },
+  welcomeTitle: {
+    fontSize: 14,
+    color: COLORS.secondary,
+    ...FONTS.semiBold,
+  },
+  welcomeSubtitle: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
+    marginTop: 2,
+  },
+  welcomeClose: {
+    padding: 4,
+  },
+  // Feed List
+  feedList: {
+    paddingBottom: 80,
+  },
+  // Post Container - Threads Style
+  postContainer: {
     backgroundColor: COLORS.white,
-    marginBottom: 8,
-    paddingTop: SIZES.md,
-    ...SHADOWS.small,
   },
-  postCard: {
-    backgroundColor: '#242526',
-    marginBottom: 8,
-    paddingTop: SIZES.md,
+  pinnedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: COLORS.primary + '10',
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
   },
-  postCard: {
-    backgroundColor: COLORS.white,
-    marginBottom: 8,
-    paddingTop: SIZES.md,
-    ...SHADOWS.small,
+  pinnedText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    ...FONTS.semiBold,
   },
   postHeader: {
     flexDirection: 'row',
-    marginBottom: 12,
-    paddingHorizontal: SIZES.md,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
-  authorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary + '15',
+  avatarContainer: {
+    marginRight: 12,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
   },
-  authorInfo: {
+  avatarText: {
+    fontSize: 16,
+    color: COLORS.primary,
+    ...FONTS.bold,
+  },
+  postMain: {
     flex: 1,
-    justifyContent: 'center',
+  },
+  postTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   authorNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 2,
   },
   authorName: {
     fontSize: 15,
     color: COLORS.secondary,
-    ...FONTS.bold,
+    ...FONTS.semiBold,
   },
   roleBadge: {
-    backgroundColor: COLORS.primary + '20',
-    borderRadius: 10,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 8,
     paddingVertical: 2,
+    borderRadius: 10,
   },
-  roleBadgeText: {
-    fontSize: 10,
-    color: COLORS.primary,
+  roleText: {
+    fontSize: 11,
+    color: COLORS.white,
     ...FONTS.bold,
-    textTransform: 'uppercase',
   },
   timestamp: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.mediumGray,
     ...FONTS.regular,
   },
@@ -943,56 +973,67 @@ const styles = StyleSheet.create({
     ...FONTS.regular,
     lineHeight: 20,
     marginBottom: 12,
-    paddingHorizontal: SIZES.md,
   },
-  postActions: {
-    flexDirection: 'row',
-    paddingTop: 8,
-    paddingHorizontal: SIZES.md,
-    paddingBottom: 8,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.lightGray,
-  },
-  actionButton: {
+  actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    gap: 16,
+    marginBottom: 8,
   },
-  actionText: {
-    fontSize: 14,
+  actionBtn: {
+    padding: 4,
+  },
+  commentCount: {
+    fontSize: 13,
     color: COLORS.mediumGray,
-    ...FONTS.semiBold,
+    ...FONTS.regular,
   },
-  commentsSection: {
-    marginTop: 0,
-    paddingTop: 12,
-    paddingHorizontal: SIZES.md,
-    backgroundColor: COLORS.ultraLightGray,
+  // Comments - Threads Style
+  commentsContainer: {
+    paddingLeft: 48,
+    paddingRight: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: COLORS.ultraLightGray + '50',
   },
-  commentItem: {
+  commentRow: {
     flexDirection: 'row',
     marginBottom: 12,
   },
-  commentAvatar: {
-    marginRight: 8,
+  commentAvatarContainer: {
+    marginRight: 10,
   },
-  commentContent: {
+  commentAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.mediumGray + '30',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  commentAvatarText: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+    ...FONTS.bold,
+  },
+  commentMain: {
     flex: 1,
   },
-  commentBubble: {
-    backgroundColor: COLORS.ultraLightGray,
-    borderRadius: 18,
-    padding: 12,
-    marginBottom: 4,
+  commentTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
   },
   commentAuthor: {
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.secondary,
-    ...FONTS.bold,
-    marginBottom: 4,
+    ...FONTS.semiBold,
+  },
+  commentTimestamp: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
   },
   commentText: {
     fontSize: 14,
@@ -1000,62 +1041,59 @@ const styles = StyleSheet.create({
     ...FONTS.regular,
     lineHeight: 18,
   },
-  commentTimestamp: {
-    fontSize: 11,
-    color: COLORS.mediumGray,
-    ...FONTS.regular,
-    marginLeft: 12,
-  },
-  addCommentContainer: {
+  // Reply Input - Threads Style
+  replyRow: {
     flexDirection: 'row',
     marginTop: 8,
-    marginBottom: 12,
   },
-  commentInputAvatar: {
-    marginRight: 8,
+  replyAvatarContainer: {
+    marginRight: 10,
   },
-  commentInputWrapper: {
+  replyAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  replyInputContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: COLORS.ultraLightGray,
-    borderRadius: 20,
-    paddingLeft: 16,
-    paddingRight: 4,
-    paddingVertical: 4,
-    minHeight: 40,
+    gap: 8,
   },
-  commentInput: {
+  replyInput: {
     flex: 1,
     fontSize: 14,
     color: COLORS.secondary,
     ...FONTS.regular,
-    maxHeight: 100,
     paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    maxHeight: 100,
   },
-  sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
+  replyButton: {
+    marginBottom: 2,
   },
-  sendButtonDisabled: {
-    backgroundColor: COLORS.mediumGray,
-    opacity: 0.5,
+  postDivider: {
+    height: 0.5,
+    backgroundColor: COLORS.lightGray,
   },
+  // Empty State
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   emptyText: {
     fontSize: 18,
     color: COLORS.secondary,
-    ...FONTS.bold,
+    ...FONTS.semiBold,
     marginTop: 16,
   },
   emptySubtext: {
@@ -1064,6 +1102,7 @@ const styles = StyleSheet.create({
     ...FONTS.regular,
     marginTop: 4,
   },
+  // Drawer
   drawerOverlay: {
     position: 'absolute',
     top: 0,
@@ -1079,7 +1118,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: DRAWER_WIDTH,
     backgroundColor: COLORS.white,
-    ...SHADOWS.large,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   drawerHeader: {
     flexDirection: 'row',
@@ -1095,35 +1138,10 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     ...FONTS.bold,
   },
-  drawerHeaderIcons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  drawerHeaderIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  headerNotificationDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.error,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-  },
   drawerProfile: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGray,
   },
@@ -1140,97 +1158,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: COLORS.secondary,
-    ...FONTS.bold,
+    ...FONTS.semiBold,
   },
   drawerMenu: {
     flex: 1,
-    paddingTop: 20,
-    backgroundColor: COLORS.white,
-  },
-  menuGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  menuGridItem: {
-    width: '47%',
-    backgroundColor: COLORS.ultraLightGray,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  menuIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  menuNotificationBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: COLORS.error,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-  },
-  menuNotificationBadgeText: {
-    fontSize: 10,
-    color: COLORS.white,
-    ...FONTS.bold,
-  },
-  menuItemText: {
-    fontSize: 13,
-    color: COLORS.secondary,
-    ...FONTS.semiBold,
-    textAlign: 'center',
-  },
-  drawerDivider: {
-    height: 1,
-    backgroundColor: COLORS.lightGray,
-    marginVertical: 16,
-    marginHorizontal: 20,
-  },
-  drawerLogoutItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  drawerLogoutText: {
-    fontSize: 16,
-    color: COLORS.error,
-    ...FONTS.semiBold,
-  },
-  drawerAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  drawerName: {
-    fontSize: 18,
-    color: COLORS.white,
-    ...FONTS.bold,
-    marginBottom: 4,
-  },
-  drawerEmail: {
-    fontSize: 14,
-    color: COLORS.white + 'DD',
-    ...FONTS.regular,
+    paddingTop: 8,
   },
   drawerItem: {
     flexDirection: 'row',
@@ -1240,122 +1172,217 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   drawerItemText: {
+    flex: 1,
     fontSize: 16,
     color: COLORS.secondary,
     ...FONTS.medium,
   },
+  drawerBadge: {
+    backgroundColor: COLORS.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  drawerBadgeText: {
+    fontSize: 11,
+    color: COLORS.white,
+    ...FONTS.bold,
+  },
   drawerDivider: {
     height: 1,
     backgroundColor: COLORS.lightGray,
-    marginVertical: 12,
+    marginVertical: 8,
     marginHorizontal: 20,
   },
+  // Drawer Header Icons - Threads Style
+  drawerHeaderIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  drawerHeaderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Feed Filters - Threads Style
+  feedFilters: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 16,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  filterIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.ultraLightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Feed Options - Threads Style
+  feedOptions: {
+    paddingVertical: 8,
+    backgroundColor: COLORS.white,
+  },
+  feedOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  feedOptionText: {
+    fontSize: 16,
+    color: COLORS.secondary,
+    ...FONTS.medium,
+  },
+  // Create Post Modal - Threads Style
   modalContainer: {
     flex: 1,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   createPostModal: {
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '80%',
-    ...SHADOWS.large,
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0.5,
     borderBottomColor: COLORS.lightGray,
   },
-  modalTitle: {
-    fontSize: 18,
+  modalCancel: {
+    fontSize: 16,
     color: COLORS.secondary,
-    ...FONTS.bold,
+    ...FONTS.regular,
   },
-  modalCloseButton: {
-    padding: 4,
+  modalTitle: {
+    fontSize: 16,
+    color: COLORS.secondary,
+    ...FONTS.semiBold,
+  },
+  modalPost: {
+    fontSize: 16,
+    color: COLORS.primary,
+    ...FONTS.semiBold,
+  },
+  modalPostDisabled: {
+    color: COLORS.mediumGray,
   },
   createPostContent: {
-    padding: 20,
+    padding: 16,
   },
-  postAuthorInfo: {
+  createPostHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
     gap: 10,
   },
-  postAuthorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary + '15',
+  createPostAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  postAuthorName: {
+  createPostAvatarText: {
+    fontSize: 16,
+    color: COLORS.primary,
+    ...FONTS.bold,
+  },
+  createPostName: {
     fontSize: 15,
     color: COLORS.secondary,
     ...FONTS.semiBold,
   },
-  postInput: {
+  createPostInput: {
     fontSize: 15,
     color: COLORS.secondary,
     ...FONTS.regular,
     minHeight: 150,
-    maxHeight: 300,
+    maxHeight: 400,
     textAlignVertical: 'top',
-    paddingVertical: 12,
+    paddingVertical: 0,
+    marginBottom: 16,
+  },
+  // Media Attachments - Threads Style
+  mediaAttachments: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 12,
+  },
+  mediaButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.ultraLightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   charCount: {
     fontSize: 12,
     color: COLORS.mediumGray,
     ...FONTS.regular,
     textAlign: 'right',
-    marginTop: 8,
+    marginTop: 12,
   },
-  modalActions: {
+  // Bottom Tab Navigation - Threads Style
+  bottomNav: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: COLORS.white,
+    paddingVertical: 8,
+    paddingBottom: 20,
+    borderTopWidth: 0.5,
     borderTopColor: COLORS.lightGray,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
-  cancelButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: COLORS.lightGray,
+  bottomNavItem: {
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
   },
-  cancelButtonText: {
-    fontSize: 15,
-    color: COLORS.secondary,
-    ...FONTS.semiBold,
-  },
-  postButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
-    minWidth: 80,
+  bottomNavItemCenter: {
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  postButtonDisabled: {
-    backgroundColor: COLORS.mediumGray,
-    opacity: 0.5,
-  },
-  postButtonText: {
-    fontSize: 15,
-    color: COLORS.white,
-    ...FONTS.bold,
+  bottomNavDot: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.error,
   },
 });
 

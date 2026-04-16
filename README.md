@@ -95,6 +95,25 @@ A modern, intelligent mobile application for streamlining the admission process 
 └── README.md                   # Project documentation
 ```
 
+## 🚀 Quick Start for New Developers
+
+**Just cloned this repo? Getting MongoDB errors?**
+
+👉 **See [SETUP_FOR_NEW_DEVELOPERS.md](SETUP_FOR_NEW_DEVELOPERS.md)** for complete setup instructions!
+
+### TL;DR - Quick Fix
+
+1. Copy `backend/.env.example` to `backend/.env`
+2. Set up MongoDB (Atlas or local)
+3. Add your MongoDB connection string to `.env`
+4. Generate a JWT secret
+5. Run `npm install` in both backend and mobile folders
+6. Start backend: `cd backend && npm start`
+7. Update IP in `mobile/src/config/apiConfig.js`
+8. Start mobile: `cd mobile && npx expo start`
+
+---
+
 ## Installation & Setup
 
 ### Prerequisites
@@ -115,7 +134,12 @@ cd backend
 npm install
 ```
 
-3. Create `.env` file:
+3. Create `.env` file from example:
+```bash
+copy .env.example .env
+```
+
+4. Configure `.env` file:
 ```env
 PORT=5000
 MONGODB_URI=your_mongodb_connection_string
@@ -124,7 +148,9 @@ EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_email_app_password
 ```
 
-4. Start the server:
+**Need help?** See [SETUP_FOR_NEW_DEVELOPERS.md](SETUP_FOR_NEW_DEVELOPERS.md)
+
+5. Start the server:
 ```bash
 npm start
 # or

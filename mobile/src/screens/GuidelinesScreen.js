@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   ImageBackground,
   Image,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SIZES, SHADOWS } from '../styles/theme';
 import { pretestAPI } from '../services/api';
@@ -70,6 +72,31 @@ const GuidelinesScreen = ({ navigation }) => {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          },
+        },
+      ]
+    );
+  };
+
   if (checking) {
     return (
       <View style={styles.loadingContainer}>
@@ -101,6 +128,16 @@ const GuidelinesScreen = ({ navigation }) => {
           </View>
           <Text style={styles.headerTitle}>Admission Portal</Text>
           <Text style={styles.headerSubtitle}>CTU Daanbantayan Campus</Text>
+          
+          {/* Logout Button */}
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={22} color={COLORS.white} />
+            <Text style={styles.logoutText}></Text>
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -246,6 +283,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.white + 'CC',
     ...FONTS.regular,
+  },
+  logoutButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  logoutText: {
+    fontSize: 13,
+    color: COLORS.white,
+    ...FONTS.semiBold,
   },
   content: {
     flex: 1,

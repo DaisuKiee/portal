@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SIZES, SHADOWS } from '../styles/theme';
 
-const FormStep0 = ({ data, onUpdate, courses, selectedCourse, courseName }) => {
+const FormStep0 = ({ data, onUpdate, courses, selectedCourse, courseName, navigation }) => {
   const [focusedField, setFocusedField] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
 
@@ -367,6 +367,23 @@ const FormStep0 = ({ data, onUpdate, courses, selectedCourse, courseName }) => {
                         ]}>
                           {course.name}
                         </Text>
+                        {/* Show requirements */}
+                        {(course.minimumGWA || course.studentLimit) && (
+                          <View style={styles.courseRequirements}>
+                            {course.minimumGWA && (
+                              <View style={styles.requirementBadge}>
+                                <Ionicons name="trophy" size={12} color={COLORS.warning} />
+                                <Text style={styles.requirementText}>Min GWA: {course.minimumGWA}</Text>
+                              </View>
+                            )}
+                            {course.studentLimit && (
+                              <View style={styles.requirementBadge}>
+                                <Ionicons name="people" size={12} color={COLORS.info} />
+                                <Text style={styles.requirementText}>Limit: {course.studentLimit} students</Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
                       </View>
                       {data.course === course.code && (
                         <View style={styles.checkmarkContainer}>
@@ -399,6 +416,20 @@ const FormStep0 = ({ data, onUpdate, courses, selectedCourse, courseName }) => {
           <Text style={styles.sectionDesc}>Select your preferred program and details</Text>
         </View>
       </View>
+
+      {/* Back to Pretest Button */}
+      <TouchableOpacity 
+        style={styles.backToPretestButton}
+        onPress={() => {
+          if (navigation) {
+            navigation.navigate('Pretest');
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="arrow-back-circle-outline" size={20} color={COLORS.primary} />
+        <Text style={styles.backToPretestText}>Retake Pretest</Text>
+      </TouchableOpacity>
 
       <View style={styles.card}>
         {renderDropdown('Category', 'category', categories, 'Select category', 'list-outline', true)}
@@ -480,6 +511,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.mediumGray,
     ...FONTS.regular,
+  },
+  backToPretestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary + '10',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
+  },
+  backToPretestText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    ...FONTS.semiBold,
   },
   card: {
     backgroundColor: COLORS.white,
@@ -760,6 +809,26 @@ const styles = StyleSheet.create({
   },
   checkmarkContainer: {
     marginLeft: 8,
+  },
+  courseRequirements: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  requirementBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.ultraLightGray,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  requirementText: {
+    fontSize: 11,
+    color: COLORS.darkGray,
+    ...FONTS.medium,
   },
 });
 

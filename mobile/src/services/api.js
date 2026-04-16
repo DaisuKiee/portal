@@ -61,6 +61,7 @@ export const pretestAPI = {
 export const applicationAPI = {
   submit: (data) => api.post('/application', data),
   getMine: () => api.get('/application/me'),
+  getByTrackingCode: (code) => api.get(`/tracking/${code}`),
   update: (id, data) => api.put(`/application/${id}`, data),
 };
 
@@ -87,6 +88,14 @@ export const profileAPI = {
   update: (data) => api.put('/profile', data),
   changePassword: (currentPassword, newPassword) => 
     api.put('/profile/change-password', { currentPassword, newPassword }),
+};
+
+export const adminAPI = {
+  getStats: () => api.get('/admin/stats'),
+  getApplications: (filter = 'all') => api.get(`/admin/applications?filter=${filter}`),
+  updateApplicationStatus: (id, data) => api.put(`/admin/applications/${id}/status`, data),
+  updateApplicationStages: (id, data) => api.put(`/admin/applications/${id}/stages`, data),
+  getUsers: (filter = 'all') => api.get(`/admin/users?filter=${filter}`),
 };
 
 export default api;

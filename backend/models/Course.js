@@ -24,6 +24,17 @@ const courseSchema = new mongoose.Schema({
     type: String,
     lowercase: true
   }],
+  studentLimit: {
+    type: Number,
+    default: null,
+    min: 0
+  },
+  minimumGWA: {
+    type: Number,
+    default: null,
+    min: 65,
+    max: 100
+  },
   isActive: {
     type: Boolean,
     default: true

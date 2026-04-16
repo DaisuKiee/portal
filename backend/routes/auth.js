@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
-const { sendVerificationEmail, sendWelcomeEmail, generateVerificationCode } = require('../config/email');
+const { sendVerificationEmail, sendWelcomeEmail, sendResetPasswordEmail, generateVerificationCode } = require('../config/email');
 
 // @route   POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -173,14 +173,15 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    console.log('Login successful:', { email: user.email });
+    console.log('Login successful:', { email: user.email, isVerified: user.isVerified });
     res.json({
       token,
       user: {
         id: user._id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role
+        role: user.role,
+        isVerified: user.isVerified
       }
     });
   } catch (error) {
@@ -230,7 +231,7 @@ router.post('/forgot-password', async (req, res) => {
 
     // Send reset email
     try {
-      await sendVerificationEmail(user.email, user.fullName, resetCode, 'Password Reset');
+      await sendResetPasswordEmail(user.email, user.fullName, resetCode);
     } catch (emailError) {
       console.error('Failed to send reset email:', emailError);
       return res.status(500).json({ message: 'Failed to send reset email' });

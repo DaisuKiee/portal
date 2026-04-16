@@ -12,6 +12,7 @@ const trackingRoutes = require('./routes/tracking');
 const feedRoutes = require('./routes/feed');
 const notificationRoutes = require('./routes/notifications');
 const profileRoutes = require('./routes/profile');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use('/api/tracking', trackingRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

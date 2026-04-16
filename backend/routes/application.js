@@ -21,13 +21,15 @@ router.post('/', auth, async (req, res) => {
 
     const {
       personalInfo,
+      programData,
       educationalBackground,
       familyBackground,
       preferredCourse,
       aiRecommendedCourse,
       aiAnalysis,
       pretestAnswers,
-      documentsAcknowledged
+      documentsAcknowledged,
+      documents
     } = req.body;
 
     const trackingCode = 'CTU-' + uuidv4().substring(0, 8).toUpperCase();
@@ -36,13 +38,15 @@ router.post('/', auth, async (req, res) => {
       userId: req.user._id,
       trackingCode,
       personalInfo,
-      educationalBackground,
-      familyBackground,
+      programData: programData || {},
+      educationalBackground: educationalBackground || {},
+      familyBackground: familyBackground || {},
       preferredCourse,
       aiRecommendedCourse: aiRecommendedCourse || '',
       aiAnalysis: aiAnalysis || '',
       pretestAnswers: pretestAnswers || {},
       documentsAcknowledged: documentsAcknowledged || false,
+      documents: documents || {},
       submittedAt: new Date()
     });
 
@@ -51,7 +55,7 @@ router.post('/', auth, async (req, res) => {
     // Create notification for user
     await Notification.create({
       user: req.user._id,
-      type: 'application',
+      type: 'application_submitted',
       title: 'Application Submitted Successfully',
       message: `Your application has been submitted. Tracking code: ${trackingCode}`,
       data: { trackingCode }

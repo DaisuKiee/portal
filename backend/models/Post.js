@@ -35,6 +35,10 @@ const PostSchema = new mongoose.Schema({
     required: true,
     maxlength: 1000
   },
+  isPinned: {
+    type: Boolean,
+    default: false
+  },
   comments: [CommentSchema],
   createdAt: {
     type: Date,

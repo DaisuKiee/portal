@@ -10,7 +10,7 @@ router.get('/', auth, async (req, res) => {
   try {
     const posts = await Post.find()
       .populate('author', 'fullName email role')
-      .sort({ createdAt: -1 })
+      .sort({ isPinned: -1, createdAt: -1 }) // Pinned posts first, then by date
       .limit(50);
 
     const formattedPosts = posts.map(post => ({
@@ -22,6 +22,7 @@ router.get('/', auth, async (req, res) => {
       },
       content: post.content,
       timestamp: getTimeAgo(post.createdAt),
+      isPinned: post.isPinned || false,
       comments: post.comments.map(comment => ({
         id: comment._id,
         author: comment.authorName,
@@ -83,11 +84,15 @@ router.post('/', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Automatically pin posts from admins
+    const isPinned = user.role === 'admin';
+
     const post = new Post({
       author: req.user.id,
       authorName: user.fullName,
       authorRole: user.role || 'student',
-      content: content.trim()
+      content: content.trim(),
+      isPinned: isPinned
     });
 
     await post.save();
@@ -101,6 +106,7 @@ router.post('/', auth, async (req, res) => {
       },
       content: post.content,
       timestamp: 'Just now',
+      isPinned: post.isPinned,
       comments: []
     });
   } catch (error) {

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Animated,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
@@ -278,6 +279,7 @@ const AdmissionFormScreen = ({ navigation, route }) => {
         aiAnalysis: aiAnalysis || '',
         pretestAnswers: pretestAnswers || [],
         documentsAcknowledged: documentsData.documentsAcknowledged,
+        documents: documentsData.documents || {},
       });
 
       setTrackingCode(response.data.trackingCode);
@@ -289,19 +291,17 @@ const AdmissionFormScreen = ({ navigation, route }) => {
       Toast.show({
         type: 'success',
         text1: 'Application Submitted!',
-        text2: 'Redirecting to Community Feed...',
+        text2: 'Please save your tracking code.',
         position: 'top',
         topOffset: 60,
         visibilityTime: 2000,
       });
       
-      // Automatically navigate to Feed after 2 seconds
-      setTimeout(() => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Feed', params: { trackingCode: response.data.trackingCode } }],
-        });
-      }, 2000);
+      // Move to step 4 (Tracking Code screen)
+      setSubmitting(false);
+      animateOut(() => {
+        setCurrentStep(4);
+      });
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to submit application. Please try again.';
       if (error.response?.data?.trackingCode) {
@@ -311,18 +311,17 @@ const AdmissionFormScreen = ({ navigation, route }) => {
         Toast.show({
           type: 'success',
           text1: 'Application Submitted!',
-          text2: 'Redirecting to Community Feed...',
+          text2: 'Please save your tracking code.',
           position: 'top',
           topOffset: 60,
           visibilityTime: 2000,
         });
         
-        setTimeout(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Feed', params: { trackingCode: error.response.data.trackingCode } }],
-          });
-        }, 2000);
+        // Move to step 4 (Tracking Code screen)
+        setSubmitting(false);
+        animateOut(() => {
+          setCurrentStep(4);
+        });
       } else {
         Toast.show({
           type: 'error',
@@ -331,10 +330,34 @@ const AdmissionFormScreen = ({ navigation, route }) => {
           position: 'top',
           topOffset: 60,
         });
+        setSubmitting(false);
       }
-    } finally {
-      setSubmitting(false);
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout? Your form progress will be saved.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          },
+        },
+      ]
+    );
   };
 
   const renderStep = () => {
@@ -346,6 +369,7 @@ const AdmissionFormScreen = ({ navigation, route }) => {
           courses={courses}
           selectedCourse={selectedCourse}
           courseName={courseName}
+          navigation={navigation}
         />;
       case 2:
         return <FormStep1 data={personalInfo} onUpdate={setPersonalInfo} />;
@@ -412,6 +436,18 @@ const AdmissionFormScreen = ({ navigation, route }) => {
             </View>
           )}
         </View>
+        
+        {/* Logout Button - Only show in steps 1-3 */}
+        {currentStep < 4 && (
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={20} color={COLORS.white} />
+            <Text style={styles.logoutText}></Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <StepIndicator 
@@ -490,6 +526,7 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 12,
     paddingHorizontal: SIZES.lg,
+    position: 'relative',
   },
   headerContent: {
     flexDirection: 'row',
@@ -506,6 +543,25 @@ const styles = StyleSheet.create({
     color: COLORS.primaryLight,
     ...FONTS.regular,
     marginTop: 2,
+  },
+  logoutButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  logoutText: {
+    fontSize: 12,
+    color: COLORS.white,
+    ...FONTS.semiBold,
   },
   savingIndicator: {
     flexDirection: 'row',

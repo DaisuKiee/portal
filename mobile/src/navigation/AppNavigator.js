@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -18,6 +18,15 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
+import AdminDashboardScreen from '../screens/AdminDashboardScreen';
+import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
+import AdminUsersScreen from '../screens/AdminUsersScreen';
+import AdminCoursesScreen from '../screens/AdminCoursesScreen';
+import AdminPostsScreen from '../screens/AdminPostsScreen';
+import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
+import AdminSettingsScreen from '../screens/AdminSettingsScreen';
+import AdminTrackingManagementScreen from '../screens/AdminTrackingManagementScreen';
+import ApplicationDetailsScreen from '../screens/ApplicationDetailsScreen';
 import { applicationAPI } from '../services/api';
 import { COLORS } from '../styles/theme';
 
@@ -34,6 +43,7 @@ const AppNavigator = () => {
   const checkInitialRoute = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
+      const userStr = await AsyncStorage.getItem('user');
       
       if (!token) {
         // No token, go to Login
@@ -42,7 +52,25 @@ const AppNavigator = () => {
         return;
       }
 
-      // User is logged in, check if they have an application
+      // Check if user is admin
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user.role === 'admin') {
+          // Admin users cannot access mobile app
+          await AsyncStorage.removeItem('token');
+          await AsyncStorage.removeItem('user');
+          Alert.alert(
+            'Admin Access Restricted',
+            'Admin accounts can only access the web admin panel. Please use a web browser to access the admin dashboard.',
+            [{ text: 'OK' }]
+          );
+          setInitialRoute('Login');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Regular user, check if they have an application
       try {
         const response = await applicationAPI.getMine();
         if (response.data && response.data.trackingCode) {
@@ -107,6 +135,15 @@ const AppNavigator = () => {
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
+      <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      <Stack.Screen name="AdminApplications" component={AdminApplicationsScreen} />
+      <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+      <Stack.Screen name="AdminCourses" component={AdminCoursesScreen} />
+      <Stack.Screen name="AdminPosts" component={AdminPostsScreen} />
+      <Stack.Screen name="AdminNotifications" component={AdminNotificationsScreen} />
+      <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} />
+      <Stack.Screen name="AdminTrackingManagement" component={AdminTrackingManagementScreen} />
+      <Stack.Screen name="ApplicationDetails" component={ApplicationDetailsScreen} />
     </Stack.Navigator>
   );
 };

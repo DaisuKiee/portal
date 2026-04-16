@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   StatusBar,
   Share,
-  Platform,
   Animated,
   Dimensions,
 } from 'react-native';
@@ -26,19 +25,21 @@ const TrackingScreen = ({ navigation, route }) => {
   
   const [trackingCode, setTrackingCode] = useState(initialCode || '');
   const [searchCode, setSearchCode] = useState('');
-  const [lookupResult, setLookupResult] = useState(null);
+  const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-  const drawerAnim = useRef(new Animated.Value(-SCREEN_WIDTH * 0.75)).current;
 
   useEffect(() => {
     loadUserData();
     loadUnreadCount();
+    
+    if (initialCode) {
+      handleLookup();
+    }
     
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -71,24 +72,8 @@ const TrackingScreen = ({ navigation, route }) => {
       const response = await notificationAPI.getUnreadCount();
       setUnreadCount(response.data.count);
     } catch (error) {
-      console.error('Error loading unread count:', error);
-    }
-  };
-
-  const toggleDrawer = () => {
-    if (isDrawerOpen) {
-      Animated.timing(drawerAnim, {
-        toValue: -SCREEN_WIDTH * 0.75,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => setIsDrawerOpen(false));
-    } else {
-      setIsDrawerOpen(true);
-      Animated.timing(drawerAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      // Silently fail
+      setUnreadCount(0);
     }
   };
 
@@ -120,8 +105,8 @@ const TrackingScreen = ({ navigation, route }) => {
     const codeToSearch = searchCode.trim() || trackingCode;
     if (!codeToSearch) {
       Toast.show({
-        type: 'warning',
-        text1: 'Error',
+        type: 'error',
+        text1: 'Missing Code',
         text2: 'Please enter a tracking code',
         position: 'top',
         topOffset: 60,
@@ -132,84 +117,86 @@ const TrackingScreen = ({ navigation, route }) => {
     setLoading(true);
     try {
       const response = await trackingAPI.lookup(codeToSearch);
-      setLookupResult(response.data);
+      setApplication(response.data);
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to find application';
       Toast.show({
         type: 'error',
         text1: 'Not Found',
-        text2: message,
+        text2: error.response?.data?.message || 'Application not found',
         position: 'top',
         topOffset: 60,
       });
-      setLookupResult(null);
+      setApplication(null);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    Toast.show({
-      type: 'confirm',
-      text1: 'Logout',
-      text2: 'Are you sure you want to logout?',
-      position: 'top',
-      topOffset: 60,
-      visibilityTime: 6000,
-      props: {
-        onConfirm: async () => {
-          await AsyncStorage.removeItem('token');
-          await AsyncStorage.removeItem('user');
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
-        },
-        onCancel: () => {},
-        confirmText: 'Logout',
-      },
-    });
+    toggleDrawer();
+    setTimeout(async () => {
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    }, 300);
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return COLORS.warning;
-      case 'reviewing': return COLORS.info;
-      case 'accepted': return COLORS.success;
-      case 'rejected': return COLORS.error;
-      default: return COLORS.mediumGray;
-    }
-  };
+  const ProcessStage = ({ title, status, details }) => {
+    const getIcon = () => {
+      if (status === 'completed') return 'checkmark-circle';
+      return 'ellipsis-horizontal-circle';
+    };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending': return 'time-outline';
-      case 'reviewing': return 'search-outline';
-      case 'accepted': return 'checkmark-circle';
-      case 'rejected': return 'close-circle';
-      default: return 'document-text-outline';
-    }
+    const getColor = () => {
+      if (status === 'completed') return '#4CAF50';
+      return '#9E9E9E';
+    };
+
+    return (
+      <View style={styles.stageContainer}>
+        <View style={styles.stageHeader}>
+          <View style={styles.stageLeft}>
+            <Ionicons name={getIcon()} size={28} color={getColor()} />
+            <Text style={styles.stageTitle}>{title}</Text>
+          </View>
+          {status === 'completed' && (
+            <View style={styles.completedBadge}>
+              <Text style={styles.completedText}>Completed</Text>
+            </View>
+          )}
+        </View>
+        {details && details.length > 0 && (
+          <View style={styles.stageDetails}>
+            {details.map((detail, index) => (
+              <View key={index} style={styles.detailBox}>
+                <Ionicons name="information-circle" size={16} color={COLORS.white} />
+                <Text style={styles.detailText}>{detail}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.secondary} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      
+      {/* Header - Threads Style */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.menuButton}
-          onPress={toggleDrawer}
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <Ionicons name="menu" size={24} color={COLORS.white} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Track Application</Text>
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => navigation.navigate('Notifications')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="notifications" size={24} color={COLORS.white} />
-        </TouchableOpacity>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
@@ -217,11 +204,11 @@ const TrackingScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Success Section - Only shown on first visit */}
-        {initialCode && (
+        {/* Success Banner - Only shown on first visit */}
+        {initialCode && !application && (
           <Animated.View 
             style={[
-              styles.successSection,
+              styles.successBanner,
               {
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
@@ -229,12 +216,14 @@ const TrackingScreen = ({ navigation, route }) => {
             ]}
           >
             <View style={styles.successIconCircle}>
-              <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
+              <Ionicons name="checkmark-circle" size={40} color={COLORS.success} />
             </View>
-            <Text style={styles.successTitle}>Application Submitted!</Text>
-            <Text style={styles.successSubtext}>
-              Your application has been submitted successfully. Please save your tracking code below.
-            </Text>
+            <View style={styles.successContent}>
+              <Text style={styles.successTitle}>Application Submitted!</Text>
+              <Text style={styles.successSubtext}>
+                Your application has been submitted successfully
+              </Text>
+            </View>
           </Animated.View>
         )}
 
@@ -249,363 +238,236 @@ const TrackingScreen = ({ navigation, route }) => {
               },
             ]}
           >
-            <Text style={styles.codeLabel}>YOUR TRACKING CODE</Text>
-            <Text style={styles.codeValue}>{trackingCode}</Text>
+            <View style={styles.codeHeader}>
+              <Ionicons name="barcode-outline" size={24} color={COLORS.primary} />
+              <Text style={styles.codeLabel}>YOUR TRACKING CODE</Text>
+            </View>
+            <View style={styles.codeValueContainer}>
+              <Text style={styles.codeValue}>{trackingCode}</Text>
+            </View>
             <Text style={styles.codeHint}>
-              Use this code to check your application status
+              Save this code to track your application status anytime
             </Text>
             <View style={styles.codeActions}>
               <TouchableOpacity style={styles.copyBtn} onPress={handleCopyCode}>
-                <Ionicons name="copy-outline" size={18} color={COLORS.white} style={{ marginRight: 6 }} />
+                <Ionicons name="copy-outline" size={18} color={COLORS.white} />
                 <Text style={styles.copyBtnText}>Copy</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareBtn} onPress={handleShareCode}>
-                <Ionicons name="share-social-outline" size={18} color={COLORS.white} style={{ marginRight: 6 }} />
+                <Ionicons name="share-social-outline" size={18} color={COLORS.white} />
                 <Text style={styles.shareBtnText}>Share</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
         )}
 
-        {/* Status Lookup Section */}
+        {/* Search Card */}
         <Animated.View 
           style={[
-            styles.lookupCard,
+            styles.searchCard,
             {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }],
             },
           ]}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Ionicons name="search" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.lookupTitle}>Check Application Status</Text>
+          <View style={styles.searchHeader}>
+            <Ionicons name="search" size={22} color={COLORS.primary} />
+            <Text style={styles.searchTitle}>Check Application Status</Text>
           </View>
-          <Text style={styles.lookupDesc}>
-            Enter your tracking code to check the status of your application.
+          <Text style={styles.searchSubtitle}>
+            Enter your tracking code to view real-time updates on your application
           </Text>
-          <View style={styles.lookupRow}>
+          
+          <View style={styles.searchRow}>
             <TextInput
-              style={styles.lookupInput}
+              style={styles.searchInput}
               placeholder="Enter tracking code"
               placeholderTextColor={COLORS.mediumGray}
               value={searchCode || trackingCode}
               onChangeText={setSearchCode}
               autoCapitalize="characters"
+              editable={!loading}
             />
             <TouchableOpacity
-              style={styles.lookupBtn}
+              style={styles.searchButton}
               onPress={handleLookup}
               disabled={loading}
+              activeOpacity={0.8}
             >
               {loading ? (
                 <ActivityIndicator color={COLORS.white} size="small" />
               ) : (
-                <Text style={styles.lookupBtnText}>Check</Text>
+                <Ionicons name="search" size={20} color={COLORS.white} />
               )}
             </TouchableOpacity>
           </View>
         </Animated.View>
 
-        {/* Lookup Result */}
-        {lookupResult && (
+        {/* Application Result - Admission Process */}
+        {application && (
           <Animated.View 
             style={[
-              styles.resultCard,
+              styles.processCard,
               {
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
               },
             ]}
           >
-            <View style={styles.resultHeader}>
-              <Ionicons name={getStatusIcon(lookupResult.status)} size={28} color={getStatusColor(lookupResult.status)} />
-              <View style={[
-                styles.statusBadge,
-                { backgroundColor: getStatusColor(lookupResult.status) + '20' },
-              ]}>
-                <Text style={[
-                  styles.statusText,
-                  { color: getStatusColor(lookupResult.status) },
-                ]}>
-                  {lookupResult.status?.toUpperCase()}
-                </Text>
-              </View>
+            <View style={styles.processHeader}>
+              <Ionicons name="school" size={24} color={COLORS.white} />
+              <Text style={styles.processTitle}>Admission Process</Text>
             </View>
 
-            <View style={styles.resultBody}>
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Tracking Code</Text>
-                <Text style={styles.resultValue}>{lookupResult.trackingCode}</Text>
-              </View>
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Applicant</Text>
-                <Text style={styles.resultValue}>{lookupResult.applicantName}</Text>
-              </View>
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Course</Text>
-                <Text style={styles.resultValue}>{lookupResult.course}</Text>
-              </View>
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Submitted</Text>
-                <Text style={styles.resultValue}>
-                  {lookupResult.submittedAt
-                    ? new Date(lookupResult.submittedAt).toLocaleDateString('en-PH', {
-                        year: 'numeric', month: 'long', day: 'numeric',
-                      })
-                    : 'N/A'}
-                </Text>
-              </View>
-            </View>
+            {/* View Details Button */}
+            <TouchableOpacity 
+              style={styles.viewDetailsButton}
+              onPress={() => navigation.navigate('ApplicationDetails', { trackingCode: application.trackingCode })}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="document-text" size={20} color={COLORS.primary} />
+              <Text style={styles.viewDetailsText}>View Full Application Details</Text>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+            </TouchableOpacity>
 
-            {/* Status Timeline */}
-            <View style={styles.timeline}>
-              {['pending', 'reviewing', 'accepted'].map((step, index) => {
-                const statusOrder = ['pending', 'reviewing', 'accepted'];
-                const currentIndex = statusOrder.indexOf(lookupResult.status);
-                const isCompleted = index <= currentIndex;
-                const isCurrent = index === currentIndex;
+            <ProcessStage
+              title="Application"
+              status={application.stages?.application || 'completed'}
+              details={[]}
+            />
 
-                return (
-                  <View key={step} style={styles.timelineStep}>
-                    <View style={[
-                      styles.timelineDot,
-                      isCompleted && styles.timelineDotCompleted,
-                      isCurrent && styles.timelineDotCurrent,
-                    ]}>
-                      {isCompleted && <Text style={styles.timelineCheck}>✓</Text>}
-                    </View>
-                    {index < 2 && (
-                      <View style={[
-                        styles.timelineLine,
-                        isCompleted && index < currentIndex && styles.timelineLineCompleted,
-                      ]} />
-                    )}
-                    <Text style={[
-                      styles.timelineLabel,
-                      isCompleted && styles.timelineLabelCompleted,
-                    ]}>
-                      {step.charAt(0).toUpperCase() + step.slice(1)}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
+            <ProcessStage
+              title="Screening"
+              status={application.stages?.screening || 'pending'}
+              details={[]}
+            />
+
+            <ProcessStage
+              title="Entrance Examination"
+              status={application.stages?.exam || 'pending'}
+              details={application.examDetails || []}
+            />
+
+            <ProcessStage
+              title="Interview"
+              status={application.stages?.interview || 'pending'}
+              details={application.interviewDetails || []}
+            />
+
+            <ProcessStage
+              title="Enrollment Selection"
+              status={application.stages?.enrollment || 'pending'}
+              details={application.enrollmentDetails || []}
+            />
+
+            <ProcessStage
+              title="ID & Email Issuance"
+              status={application.stages?.idIssuance || 'pending'}
+              details={application.idDetails || []}
+            />
           </Animated.View>
         )}
 
-        {/* Info Card */}
-        <Animated.View 
-          style={[
-            styles.infoCard,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-            <Ionicons name="call-outline" size={18} color={COLORS.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.infoTitle}>Need Help?</Text>
-          </View>
-          <Text style={styles.infoText}>
-            If you have questions about your application, contact the CTU Daanbantayan Campus Registrar's Office.
-          </Text>
-          <Text style={styles.infoContact}>
-            Email: registrar@ctu.edu.ph{'\n'}
-            Phone: (032) XXX-XXXX
-          </Text>
-        </Animated.View>
-
-        {/* Community Feed Button */}
-        <Animated.View 
-          style={[
-            styles.feedButtonContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.feedButton}
-            onPress={() => navigation.navigate('Feed', { trackingCode })}
-            activeOpacity={0.8}
+        {/* Disqualification Reasons */}
+        {application && application.disqualificationReasons && application.disqualificationReasons.length > 0 && (
+          <Animated.View 
+            style={[
+              styles.disqualificationCard,
+              {
+                opacity: fadeAnim,
+              },
+            ]}
           >
-            <View style={styles.feedButtonContent}>
-              <Ionicons name="chatbubbles" size={24} color={COLORS.white} />
-              <View style={styles.feedButtonText}>
-                <Text style={styles.feedButtonTitle}>Community Feed</Text>
-                <Text style={styles.feedButtonSubtitle}>
-                  Join discussions and get updates
-                </Text>
-              </View>
+            <View style={styles.disqualificationHeader}>
+              <Ionicons name="alert-circle" size={24} color="#D32F2F" />
+              <Text style={styles.disqualificationTitle}>Important Notice</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color={COLORS.white} />
-          </TouchableOpacity>
+            {application.disqualificationReasons.map((reason, index) => (
+              <View key={index} style={styles.disqualificationItem}>
+                <Ionicons name="close-circle" size={16} color="#D32F2F" />
+                <Text style={styles.disqualificationText}>{reason}</Text>
+              </View>
+            ))}
+          </Animated.View>
+        )}
+
+        {/* Help Card */}
+        <Animated.View 
+          style={[
+            styles.helpCard,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <View style={styles.helpHeader}>
+            <Ionicons name="help-circle" size={22} color={COLORS.primary} />
+            <Text style={styles.helpTitle}>Need Assistance?</Text>
+          </View>
+          <Text style={styles.helpText}>
+            For questions about your application, contact the CTU Daanbantayan Campus Registrar's Office
+          </Text>
+          <View style={styles.helpContact}>
+            <View style={styles.helpContactItem}>
+              <Ionicons name="mail" size={16} color={COLORS.primary} />
+              <Text style={styles.helpContactText}>registrar@ctu.edu.ph</Text>
+            </View>
+            <View style={styles.helpContactItem}>
+              <Ionicons name="call" size={16} color={COLORS.primary} />
+              <Text style={styles.helpContactText}>(032) XXX-XXXX</Text>
+            </View>
+          </View>
         </Animated.View>
       </ScrollView>
 
-      {/* Drawer Navigation */}
-      {isDrawerOpen && (
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
         <TouchableOpacity
-          style={styles.drawerOverlay}
-          activeOpacity={1}
-          onPress={toggleDrawer}
+          style={styles.bottomNavItem}
+          onPress={() => navigation.navigate('Feed')}
+          activeOpacity={0.6}
         >
-          <Animated.View
-            style={[
-              styles.drawer,
-              { transform: [{ translateX: drawerAnim }] },
-            ]}
-            onStartShouldSetResponder={() => true}
-          >
-            {/* Drawer Header */}
-            <View style={styles.drawerHeader}>
-              <Text style={styles.drawerHeaderTitle}>Menu</Text>
-              <View style={styles.drawerHeaderIcons}>
-                <TouchableOpacity 
-                  style={styles.drawerHeaderIcon}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('NotificationSettings'), 300);
-                  }}
-                >
-                  <Ionicons name="settings-outline" size={24} color={COLORS.white} />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.drawerHeaderIcon}
-                  onPress={() => {
-                    toggleDrawer();
-                  }}
-                >
-                  <Ionicons name="search-outline" size={24} color={COLORS.white} />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.drawerHeaderIcon}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Notifications'), 300);
-                  }}
-                >
-                  <Ionicons name="notifications-outline" size={24} color={COLORS.white} />
-                  {unreadCount > 0 && (
-                    <View style={styles.headerNotificationDot} />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* User Profile Section */}
-            <TouchableOpacity
-              style={styles.drawerProfile}
-              onPress={() => {
-                toggleDrawer();
-                setTimeout(() => navigation.navigate('Profile'), 300);
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.drawerProfileAvatar}>
-                <Ionicons name="person" size={28} color={COLORS.primary} />
-              </View>
-              <Text style={styles.drawerProfileName}>
-                {userData?.fullName || 'Student'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={COLORS.mediumGray} />
-            </TouchableOpacity>
-
-            {/* Menu Grid */}
-            <View style={styles.drawerMenu}>
-              <View style={styles.menuGrid}>
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Feed', { trackingCode }), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.info + '20' }]}>
-                    <Ionicons name="chatbubbles" size={28} color={COLORS.info} />
-                  </View>
-                  <Text style={styles.menuItemText}>Feed</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.primary + '20' }]}>
-                    <Ionicons name="search" size={28} color={COLORS.primary} />
-                  </View>
-                  <Text style={styles.menuItemText}>Track Application</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Profile'), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.success + '20' }]}>
-                    <Ionicons name="person" size={28} color={COLORS.success} />
-                  </View>
-                  <Text style={styles.menuItemText}>Profile</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.warning + '20' }]}>
-                    <Ionicons name="bookmark" size={28} color={COLORS.warning} />
-                  </View>
-                  <Text style={styles.menuItemText}>Saved</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.menuGridItem}
-                  onPress={() => {
-                    toggleDrawer();
-                    setTimeout(() => navigation.navigate('Notifications'), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.menuIconContainer, { backgroundColor: COLORS.error + '20', position: 'relative' }]}>
-                    <Ionicons name="notifications" size={28} color={COLORS.error} />
-                    {unreadCount > 0 && (
-                      <View style={styles.menuNotificationBadge}>
-                        <Text style={styles.menuNotificationBadgeText}>
-                          {unreadCount > 9 ? '9+' : unreadCount}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.menuItemText}>Notifications</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.drawerDivider} />
-
-              <TouchableOpacity
-                style={styles.drawerLogoutItem}
-                onPress={handleLogout}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="log-out-outline" size={24} color={COLORS.error} />
-                <Text style={styles.drawerLogoutText}>Logout</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
+          <Ionicons name="home-outline" size={26} color={COLORS.secondary} />
         </TouchableOpacity>
-      )}
+
+        <TouchableOpacity
+          style={styles.bottomNavItem}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="search" size={26} color={COLORS.secondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavItemCenter}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="add" size={32} color={COLORS.secondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavItem}
+          onPress={() => navigation.navigate('Notifications')}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="heart-outline" size={26} color={COLORS.secondary} />
+          {unreadCount > 0 && (
+            <View style={styles.bottomNavBadge}>
+              <Text style={styles.bottomNavBadgeText}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavItem}
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="person-outline" size={26} color={COLORS.secondary} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -613,110 +475,125 @@ const TrackingScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.ultraLightGray,
+    backgroundColor: COLORS.white,
   },
   header: {
-    backgroundColor: COLORS.secondary,
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: SIZES.md,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    ...SHADOWS.medium,
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.lightGray,
   },
-  menuButton: {
+  backButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
-    color: COLORS.white,
+    fontSize: 18,
+    color: COLORS.secondary,
     ...FONTS.bold,
   },
-  notificationButton: {
+  headerSpacer: {
     width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   content: {
     flex: 1,
+    backgroundColor: COLORS.ultraLightGray,
   },
   contentContainer: {
     padding: SIZES.md,
-    paddingBottom: SIZES.xxl,
+    paddingBottom: 40,
   },
-  successSection: {
+  successBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SIZES.lg,
+    backgroundColor: COLORS.success + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.success,
   },
   successIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.success + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginRight: 12,
+  },
+  successContent: {
+    flex: 1,
   },
   successTitle: {
-    fontSize: 24,
+    fontSize: 16,
     color: COLORS.success,
     ...FONTS.bold,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   successSubtext: {
-    fontSize: 14,
-    color: COLORS.mediumGray,
+    fontSize: 13,
+    color: COLORS.darkGray,
     ...FONTS.regular,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: SIZES.md,
   },
   codeCard: {
     backgroundColor: COLORS.white,
-    borderRadius: SIZES.borderRadiusLg,
-    padding: SIZES.lg,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
     ...SHADOWS.medium,
-    alignItems: 'center',
-    marginBottom: SIZES.md,
     borderWidth: 2,
-    borderColor: COLORS.primary + '30',
+    borderColor: COLORS.primary + '20',
+  },
+  codeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   codeLabel: {
     fontSize: 12,
-    color: COLORS.mediumGray,
-    ...FONTS.bold,
-    letterSpacing: 1.5,
-    marginBottom: 8,
-  },
-  codeValue: {
-    fontSize: 28,
     color: COLORS.primary,
     ...FONTS.bold,
-    letterSpacing: 2,
-    marginBottom: 4,
+    letterSpacing: 1.5,
+  },
+  codeValueContainer: {
+    backgroundColor: COLORS.primary + '10',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: COLORS.primary + '30',
+    borderStyle: 'dashed',
+  },
+  codeValue: {
+    fontSize: 24,
+    color: COLORS.primary,
+    ...FONTS.bold,
+    letterSpacing: 3,
+    textAlign: 'center',
   },
   codeHint: {
     fontSize: 12,
     color: COLORS.mediumGray,
     ...FONTS.regular,
-    marginBottom: 14,
+    textAlign: 'center',
+    marginBottom: 16,
   },
   codeActions: {
     flexDirection: 'row',
     gap: 10,
   },
   copyBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: SIZES.borderRadiusSm,
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
   },
   copyBtnText: {
     fontSize: 14,
@@ -724,370 +601,268 @@ const styles = StyleSheet.create({
     ...FONTS.semiBold,
   },
   shareBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: COLORS.success,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: SIZES.borderRadiusSm,
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
   },
   shareBtnText: {
     fontSize: 14,
     color: COLORS.white,
     ...FONTS.semiBold,
   },
-  lookupCard: {
+  searchCard: {
     backgroundColor: COLORS.white,
-    borderRadius: SIZES.borderRadiusLg,
-    padding: SIZES.md,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
     ...SHADOWS.small,
-    marginBottom: SIZES.md,
   },
-  lookupTitle: {
+  searchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  searchTitle: {
     fontSize: 16,
     color: COLORS.secondary,
     ...FONTS.bold,
-    marginBottom: 4,
   },
-  lookupDesc: {
+  searchSubtitle: {
     fontSize: 13,
     color: COLORS.mediumGray,
     ...FONTS.regular,
-    marginBottom: 12,
+    lineHeight: 19,
+    marginBottom: 16,
   },
-  lookupRow: {
+  searchRow: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  lookupInput: {
-    flex: 1,
-    backgroundColor: COLORS.inputBg,
-    borderRadius: SIZES.borderRadiusSm,
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    paddingHorizontal: 14,
-    height: SIZES.inputHeight,
-    fontSize: 15,
-    color: COLORS.black,
-    ...FONTS.medium,
-  },
-  lookupBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: SIZES.borderRadiusSm,
-    paddingHorizontal: 20,
-    height: SIZES.inputHeight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  lookupBtnText: {
-    fontSize: 14,
-    color: COLORS.white,
-    ...FONTS.bold,
-  },
-  resultCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: SIZES.borderRadiusLg,
-    padding: SIZES.md,
-    ...SHADOWS.medium,
-    marginBottom: SIZES.md,
-  },
-  resultHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
     gap: 10,
   },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    ...FONTS.bold,
-    letterSpacing: 0.5,
-  },
-  resultBody: {},
-  resultRow: {
-    flexDirection: 'row',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.ultraLightGray,
-  },
-  resultLabel: {
+  searchInput: {
     flex: 1,
-    fontSize: 13,
-    color: COLORS.mediumGray,
-    ...FONTS.medium,
-  },
-  resultValue: {
-    flex: 1.5,
-    fontSize: 13,
+    backgroundColor: COLORS.ultraLightGray,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 48,
+    fontSize: 14,
     color: COLORS.secondary,
-    ...FONTS.semiBold,
+    ...FONTS.medium,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
   },
-  timeline: {
+  searchButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  processCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 16,
+    ...SHADOWS.medium,
+  },
+  processHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: SIZES.md,
-    paddingTop: SIZES.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.lightGray,
-  },
-  timelineStep: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  timelineDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.lightGray,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timelineDotCompleted: {
-    backgroundColor: COLORS.success,
-  },
-  timelineDotCurrent: {
     backgroundColor: COLORS.primary,
-    borderWidth: 3,
-    borderColor: COLORS.primary + '40',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    padding: 16,
+    gap: 10,
   },
-  timelineCheck: {
-    fontSize: 12,
+  processTitle: {
+    fontSize: 18,
     color: COLORS.white,
     ...FONTS.bold,
   },
-  timelineLine: {
-    position: 'absolute',
-    right: -20,
-    top: 11,
-    width: 40,
-    height: 2,
-    backgroundColor: COLORS.lightGray,
-  },
-  timelineLineCompleted: {
-    backgroundColor: COLORS.success,
-  },
-  timelineLabel: {
-    fontSize: 10,
-    color: COLORS.mediumGray,
-    ...FONTS.medium,
-    marginTop: 4,
-  },
-  timelineLabelCompleted: {
-    color: COLORS.success,
-    ...FONTS.semiBold,
-  },
-  infoCard: {
-    backgroundColor: COLORS.primary + '08',
-    borderRadius: SIZES.borderRadiusLg,
-    padding: SIZES.md,
-    borderWidth: 1,
-    borderColor: COLORS.primary + '15',
-  },
-  infoTitle: {
-    fontSize: 15,
-    color: COLORS.primary,
-    ...FONTS.bold,
-    marginBottom: 6,
-  },
-  infoText: {
-    fontSize: 13,
-    color: COLORS.darkGray,
-    ...FONTS.regular,
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  infoContact: {
-    fontSize: 13,
-    color: COLORS.primary,
-    ...FONTS.medium,
-    lineHeight: 20,
-  },
-  feedButtonContainer: {
-    marginTop: SIZES.md,
-  },
-  feedButton: {
+  viewDetailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.primary,
-    borderRadius: SIZES.borderRadiusLg,
-    padding: SIZES.md,
-    ...SHADOWS.large,
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary + '10',
+    padding: 16,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
   },
-  feedButtonContent: {
+  viewDetailsText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    ...FONTS.semiBold,
+    flex: 1,
+  },
+  stageContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  stageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: COLORS.white,
+  },
+  stageLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  feedButtonText: {
     flex: 1,
   },
-  feedButtonTitle: {
-    fontSize: 16,
-    color: COLORS.white,
-    ...FONTS.bold,
-    marginBottom: 2,
+  stageTitle: {
+    fontSize: 15,
+    color: COLORS.secondary,
+    ...FONTS.semiBold,
+    flex: 1,
   },
-  feedButtonSubtitle: {
-    fontSize: 12,
-    color: COLORS.white + 'DD',
-    ...FONTS.regular,
+  completedBadge: {
+    backgroundColor: '#4CAF50' + '20',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  drawerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  drawer: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: SCREEN_WIDTH * 0.75,
-    backgroundColor: COLORS.white,
-    ...SHADOWS.large,
-  },
-  drawerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.secondary,
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-  },
-  drawerHeaderTitle: {
-    fontSize: 24,
-    color: COLORS.white,
+  completedText: {
+    fontSize: 11,
+    color: '#4CAF50',
     ...FONTS.bold,
   },
-  drawerHeaderIcons: {
-    flexDirection: 'row',
+  stageDetails: {
+    backgroundColor: '#E3F2FD',
+    padding: 12,
     gap: 8,
   },
-  drawerHeaderIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  detailBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#2196F3',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  detailText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.white,
+    ...FONTS.medium,
+    lineHeight: 19,
+  },
+  disqualificationCard: {
+    backgroundColor: '#FFEBEE',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F44336',
+  },
+  disqualificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  disqualificationTitle: {
+    fontSize: 16,
+    color: '#C62828',
+    ...FONTS.bold,
+  },
+  disqualificationItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
+  },
+  disqualificationText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#D32F2F',
+    ...FONTS.regular,
+    lineHeight: 19,
+  },
+  helpCard: {
+    backgroundColor: COLORS.primary + '08',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '20',
+  },
+  helpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  helpTitle: {
+    fontSize: 15,
+    color: COLORS.primary,
+    ...FONTS.bold,
+  },
+  helpText: {
+    fontSize: 13,
+    color: COLORS.darkGray,
+    ...FONTS.regular,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  helpContact: {
+    gap: 8,
+  },
+  helpContactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  helpContactText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    ...FONTS.medium,
+  },
+  // Bottom Navigation
+  bottomNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: COLORS.white,
+    paddingVertical: 8,
+    paddingBottom: 20,
+    borderTopWidth: 0.5,
+    borderTopColor: COLORS.lightGray,
+  },
+  bottomNavItem: {
+    width: 50,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
-  headerNotificationDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.error,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-  },
-  drawerProfile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray,
-  },
-  drawerProfileAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.primary + '15',
+  bottomNavItemCenter: {
+    width: 50,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  drawerProfileName: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.secondary,
-    ...FONTS.bold,
-  },
-  drawerMenu: {
-    flex: 1,
-    paddingTop: 20,
-    backgroundColor: COLORS.white,
-  },
-  menuGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  menuGridItem: {
-    width: '47%',
-    backgroundColor: COLORS.ultraLightGray,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  menuIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  menuNotificationBadge: {
+  bottomNavBadge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: 8,
+    right: 8,
     backgroundColor: COLORS.error,
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: COLORS.white,
   },
-  menuNotificationBadgeText: {
+  bottomNavBadgeText: {
     fontSize: 10,
     color: COLORS.white,
     ...FONTS.bold,
-  },
-  menuItemText: {
-    fontSize: 13,
-    color: COLORS.secondary,
-    ...FONTS.semiBold,
-    textAlign: 'center',
-  },
-  drawerDivider: {
-    height: 1,
-    backgroundColor: COLORS.lightGray,
-    marginVertical: 16,
-    marginHorizontal: 20,
-  },
-  drawerLogoutItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  drawerLogoutText: {
-    fontSize: 16,
-    color: COLORS.error,
-    ...FONTS.semiBold,
   },
 });
 
