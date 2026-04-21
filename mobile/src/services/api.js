@@ -71,7 +71,7 @@ export const trackingAPI = {
 
 export const feedAPI = {
   getPosts: () => api.get('/feed'),
-  createPost: (content) => api.post('/feed', { content }),
+  createPost: (data) => api.post('/feed', typeof data === 'string' ? { content: data } : data),
   addComment: (postId, content) => api.post(`/feed/${postId}/comments`, { content }),
   getMyPosts: () => api.get('/feed/my-posts'),
 };

@@ -352,14 +352,6 @@ const FeedScreen = ({ navigation, route }) => {
                   color={COLORS.secondary}
                 />
               </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6}>
-                <Ionicons name="heart-outline" size={20} color={COLORS.secondary} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6}>
-                <Ionicons name="paper-plane-outline" size={20} color={COLORS.secondary} />
-              </TouchableOpacity>
             </View>
             
             {/* Comment Count */}
