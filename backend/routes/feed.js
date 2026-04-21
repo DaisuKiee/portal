@@ -21,6 +21,7 @@ router.get('/', auth, async (req, res) => {
         role: post.author?.role === 'admin' ? 'Admin' : post.author?.role === 'staff' ? 'Staff' : null
       },
       content: post.content,
+      attachments: post.attachments || [],
       timestamp: getTimeAgo(post.createdAt),
       isPinned: post.isPinned || false,
       comments: post.comments.map(comment => ({
@@ -73,10 +74,11 @@ router.get('/my-posts', auth, async (req, res) => {
 // Create a post
 router.post('/', auth, async (req, res) => {
   try {
-    const { content } = req.body;
+    const { content, attachments } = req.body;
 
-    if (!content || content.trim().length === 0) {
-      return res.status(400).json({ message: 'Content is required' });
+    // Validate that either content or attachments exist
+    if ((!content || content.trim().length === 0) && (!attachments || attachments.length === 0)) {
+      return res.status(400).json({ message: 'Content or attachments are required' });
     }
 
     const user = await User.findById(req.user.id);
@@ -91,11 +93,40 @@ router.post('/', auth, async (req, res) => {
       author: req.user.id,
       authorName: user.fullName,
       authorRole: user.role || 'student',
-      content: content.trim(),
+      content: content ? content.trim() : '',
+      attachments: attachments || [],
       isPinned: isPinned
     });
 
     await post.save();
+
+    // If admin posts, notify all students
+    if (user.role === 'admin') {
+      try {
+        // Get all students (users who are not admin or staff)
+        const students = await User.find({ 
+          role: { $nin: ['admin', 'staff'] } 
+        }).select('_id');
+
+        // Create notifications for all students
+        const notifications = students.map(student => ({
+          user: student._id,
+          type: 'announcement',
+          title: 'New Announcement',
+          message: `${user.fullName} posted a new announcement`,
+          data: { postId: post._id }
+        }));
+
+        // Bulk insert notifications
+        if (notifications.length > 0) {
+          await Notification.insertMany(notifications);
+          console.log(`Created ${notifications.length} notifications for admin post`);
+        }
+      } catch (notifError) {
+        console.error('Error creating notifications for admin post:', notifError);
+        // Continue even if notifications fail
+      }
+    }
 
     res.status(201).json({
       id: post._id,
@@ -105,6 +136,7 @@ router.post('/', auth, async (req, res) => {
         role: user.role === 'admin' ? 'Admin' : user.role === 'staff' ? 'Staff' : null
       },
       content: post.content,
+      attachments: post.attachments || [],
       timestamp: 'Just now',
       isPinned: post.isPinned,
       comments: []
@@ -164,6 +196,30 @@ router.post('/:postId/comments', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Add comment error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete a post
+router.delete('/:postId', auth, async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // Check if user is the author or an admin
+    const user = await User.findById(req.user.id);
+    if (post.author.toString() !== req.user.id && user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to delete this post' });
+    }
+
+    await Post.findByIdAndDelete(postId);
+    res.json({ message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Delete post error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

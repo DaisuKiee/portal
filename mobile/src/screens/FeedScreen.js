@@ -13,6 +13,7 @@ import {
   Modal,
   Animated,
   Dimensions,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -288,6 +289,56 @@ const FeedScreen = ({ navigation, route }) => {
             
             <Text style={styles.postContent}>{item.content}</Text>
             
+            {/* Attachments Display */}
+            {item.attachments && item.attachments.length > 0 && (
+              <View style={styles.attachmentsContainer}>
+                {item.attachments.map((attachment, index) => (
+                  <View key={index} style={styles.attachmentItem}>
+                    {attachment.type.startsWith('image/') ? (
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => {
+                          // Open image in full screen (could implement image viewer)
+                        }}
+                      >
+                        <Image
+                          source={{ uri: attachment.data }}
+                          style={styles.attachmentImage}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.attachmentFile}>
+                        <View style={styles.attachmentFileIcon}>
+                          <Ionicons
+                            name={
+                              attachment.type.startsWith('video/') ? 'videocam' :
+                              attachment.type === 'application/pdf' ? 'document-text' :
+                              attachment.type.includes('word') ? 'document' :
+                              'document-attach'
+                            }
+                            size={24}
+                            color={COLORS.primary}
+                          />
+                        </View>
+                        <View style={styles.attachmentFileInfo}>
+                          <Text style={styles.attachmentFileName} numberOfLines={1}>
+                            {attachment.name}
+                          </Text>
+                          <Text style={styles.attachmentFileSize}>
+                            {(attachment.size / 1024 / 1024).toFixed(2)} MB
+                          </Text>
+                        </View>
+                        <TouchableOpacity style={styles.attachmentDownload}>
+                          <Ionicons name="download-outline" size={20} color={COLORS.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+            
             {/* Action Buttons - Threads Style */}
             <View style={styles.actionRow}>
               <TouchableOpacity
@@ -421,7 +472,7 @@ const FeedScreen = ({ navigation, route }) => {
           onPress={() => navigation.navigate('Notifications')}
           activeOpacity={0.6}
         >
-          <Ionicons name="heart-outline" size={26} color={COLORS.secondary} />
+          <Ionicons name="notifications-outline" size={26} color={COLORS.secondary} />
           {unreadCount > 0 && <View style={styles.notificationDot} />}
         </TouchableOpacity>
       </View>
@@ -917,6 +968,55 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.mediumGray,
     ...FONTS.regular,
+  },
+  // Attachments
+  attachmentsContainer: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  attachmentItem: {
+    marginBottom: 8,
+  },
+  attachmentImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: COLORS.ultraLightGray,
+  },
+  attachmentFile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: COLORS.ultraLightGray,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    gap: 12,
+  },
+  attachmentFileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachmentFileInfo: {
+    flex: 1,
+  },
+  attachmentFileName: {
+    fontSize: 14,
+    color: COLORS.secondary,
+    ...FONTS.semiBold,
+    marginBottom: 2,
+  },
+  attachmentFileSize: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
+  },
+  attachmentDownload: {
+    padding: 8,
   },
   // Comments - Threads Style
   commentsContainer: {

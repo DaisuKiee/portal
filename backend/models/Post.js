@@ -18,6 +18,25 @@ const CommentSchema = new mongoose.Schema({
   }
 });
 
+const AttachmentSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  type: {
+    type: String,
+    required: true
+  },
+  size: {
+    type: Number,
+    required: true
+  },
+  data: {
+    type: String,
+    required: true
+  }
+});
+
 const PostSchema = new mongoose.Schema({
   author: {
     type: mongoose.Schema.Types.ObjectId,
@@ -32,9 +51,9 @@ const PostSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: true,
     maxlength: 1000
   },
+  attachments: [AttachmentSchema],
   isPinned: {
     type: Boolean,
     default: false

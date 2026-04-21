@@ -277,7 +277,6 @@ export default function CoursesPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Student Limit
-                      <span className="text-xs font-normal text-gray-500 ml-1">(Optional)</span>
                     </label>
                     <input
                       type="number"
@@ -286,6 +285,7 @@ export default function CoursesPage() {
                       className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                       placeholder="e.g., 40"
                       min="0"
+                      required
                     />
                     <p className="text-xs text-gray-500 mt-1">Maximum students allowed</p>
                   </div>
@@ -293,7 +293,6 @@ export default function CoursesPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Minimum GWA
-                      <span className="text-xs font-normal text-gray-500 ml-1">(Optional)</span>
                     </label>
                     <input
                       type="number"
@@ -304,6 +303,7 @@ export default function CoursesPage() {
                       min="65"
                       max="100"
                       step="0.01"
+                      required
                     />
                     <p className="text-xs text-gray-500 mt-1">Required GWA (65-100)</p>
                   </div>

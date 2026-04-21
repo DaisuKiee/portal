@@ -229,24 +229,6 @@ export default function ApplicationDetailsPage() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 mb-6">
-            <button
-              onClick={() => handleUpdateStatus('approved')}
-              className="bg-green-600 text-white px-6 py-2.5 rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium transition-colors"
-            >
-              <FontAwesomeIcon icon={faCheck} />
-              Approve
-            </button>
-            <button
-              onClick={() => handleUpdateStatus('rejected')}
-              className="bg-red-600 text-white px-6 py-2.5 rounded-lg hover:bg-red-700 flex items-center gap-2 font-medium transition-colors"
-            >
-              <FontAwesomeIcon icon={faTimes} />
-              Reject
-            </button>
-          </div>
-
           {/* Program Application Section */}
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-4">

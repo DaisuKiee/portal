@@ -183,6 +183,44 @@ const TrackingScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* Search Input */}
+        {!initialCode && (
+          <View style={styles.searchCard}>
+            <Text style={styles.searchTitle}>Enter Tracking Code</Text>
+            <View style={styles.searchInputContainer}>
+              <Ionicons name="search" size={20} color={COLORS.mediumGray} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Enter your tracking code"
+                placeholderTextColor={COLORS.mediumGray}
+                value={trackingCode}
+                onChangeText={setTrackingCode}
+                autoCapitalize="characters"
+              />
+              {trackingCode.length > 0 && (
+                <TouchableOpacity onPress={() => setTrackingCode('')}>
+                  <Ionicons name="close-circle" size={20} color={COLORS.mediumGray} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity
+              style={[styles.searchButton, !trackingCode && styles.searchButtonDisabled]}
+              onPress={loadApplication}
+              disabled={!trackingCode || loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <>
+                  <Ionicons name="search" size={18} color={COLORS.white} />
+                  <Text style={styles.searchButtonText}>Track Application</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Success Banner - Only shown on first visit */}
         {initialCode && !application && (
           <Animated.View 
@@ -441,6 +479,57 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: SIZES.md,
     paddingBottom: 40,
+  },
+  searchCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    ...SHADOWS.medium,
+  },
+  searchTitle: {
+    fontSize: 16,
+    color: COLORS.secondary,
+    ...FONTS.bold,
+    marginBottom: 12,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.ultraLightGray,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: COLORS.secondary,
+    ...FONTS.medium,
+  },
+  searchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 10,
+    gap: 8,
+  },
+  searchButtonDisabled: {
+    backgroundColor: COLORS.mediumGray,
+    opacity: 0.5,
+  },
+  searchButtonText: {
+    fontSize: 15,
+    color: COLORS.white,
+    ...FONTS.semiBold,
   },
   successBanner: {
     flexDirection: 'row',

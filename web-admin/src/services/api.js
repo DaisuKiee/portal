@@ -71,7 +71,7 @@ export const adminAPI = {
 // Feed API
 export const feedAPI = {
   getPosts: () => api.get('/feed'),
-  createPost: (content) => api.post('/feed', { content }),
+  createPost: (data) => api.post('/feed', data),
   deletePost: (id) => api.delete(`/feed/${id}`),
 };
 
