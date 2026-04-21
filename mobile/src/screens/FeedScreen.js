@@ -502,26 +502,8 @@ const FeedScreen = ({ navigation, route }) => {
           >
             <View style={styles.drawerHeader}>
               <Text style={styles.drawerHeaderTitle}>Feeds</Text>
-              <View style={styles.drawerHeaderIcons}>
-                <TouchableOpacity style={styles.drawerHeaderIcon} activeOpacity={0.6}>
-                  <Ionicons name="add-circle-outline" size={24} color={COLORS.white} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.drawerHeaderIcon} activeOpacity={0.6}>
-                  <Ionicons name="create-outline" size={24} color={COLORS.white} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={toggleDrawer}>
-                  <Ionicons name="close" size={28} color={COLORS.white} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Feed Filter Icons */}
-            <View style={styles.feedFilters}>
-              <TouchableOpacity style={styles.filterIcon} activeOpacity={0.6}>
-                <Ionicons name="heart-outline" size={24} color={COLORS.secondary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterIcon} activeOpacity={0.6}>
-                <Ionicons name="bookmark-outline" size={24} color={COLORS.secondary} />
+              <TouchableOpacity onPress={toggleDrawer}>
+                <Ionicons name="close" size={28} color={COLORS.white} />
               </TouchableOpacity>
             </View>
 
@@ -559,58 +541,6 @@ const FeedScreen = ({ navigation, route }) => {
             </TouchableOpacity>
 
             <View style={styles.drawerMenu}>
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => {
-                  toggleDrawer();
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="chatbubbles" size={24} color={COLORS.secondary} />
-                <Text style={styles.drawerItemText}>Feed</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => {
-                  toggleDrawer();
-                  setTimeout(() => navigation.navigate('Tracking', { trackingCode }), 300);
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="search" size={24} color={COLORS.secondary} />
-                <Text style={styles.drawerItemText}>Track Application</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => {
-                  toggleDrawer();
-                  setTimeout(() => navigation.navigate('Profile'), 300);
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="person" size={24} color={COLORS.secondary} />
-                <Text style={styles.drawerItemText}>Profile</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => {
-                  toggleDrawer();
-                  setTimeout(() => navigation.navigate('Notifications'), 300);
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="notifications" size={24} color={COLORS.secondary} />
-                <Text style={styles.drawerItemText}>Notifications</Text>
-                {unreadCount > 0 && (
-                  <View style={styles.drawerBadge}>
-                    <Text style={styles.drawerBadgeText}>{unreadCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
               <View style={styles.drawerDivider} />
 
               <TouchableOpacity
@@ -759,7 +689,7 @@ const FeedScreen = ({ navigation, route }) => {
           onPress={() => navigation.navigate('Notifications')}
           activeOpacity={0.6}
         >
-          <Ionicons name="heart-outline" size={26} color={COLORS.secondary} />
+          <Ionicons name="notifications-outline" size={26} color={COLORS.secondary} />
           {unreadCount > 0 && <View style={styles.bottomNavDot} />}
         </TouchableOpacity>
 

@@ -181,6 +181,31 @@ const PrivacySecurityScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Security</Text>
           </View>
 
+          <TouchableOpacity 
+            style={styles.actionItem} 
+            activeOpacity={0.7}
+            onPress={() => {
+              Toast.show({
+                type: 'info',
+                text1: 'Change Password',
+                text2: 'Feature coming soon',
+                position: 'top',
+                topOffset: 60,
+              });
+            }}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: COLORS.primary + '15' }]}>
+              <Ionicons name="key-outline" size={22} color={COLORS.primary} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Change Password</Text>
+              <Text style={styles.settingDesc}>Update your account password</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: COLORS.warning + '15' }]}>

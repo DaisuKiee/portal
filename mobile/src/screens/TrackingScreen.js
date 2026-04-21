@@ -24,7 +24,6 @@ const TrackingScreen = ({ navigation, route }) => {
   const { trackingCode: initialCode } = route.params || {};
   
   const [trackingCode, setTrackingCode] = useState(initialCode || '');
-  const [searchCode, setSearchCode] = useState('');
   const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState(null);
@@ -38,7 +37,7 @@ const TrackingScreen = ({ navigation, route }) => {
     loadUnreadCount();
     
     if (initialCode) {
-      handleLookup();
+      loadApplication();
     }
     
     Animated.parallel([
@@ -77,46 +76,12 @@ const TrackingScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleCopyCode = async () => {
-    try {
-      Toast.show({
-        type: 'success',
-        text1: 'Copied!',
-        text2: `Tracking code ${trackingCode} copied to clipboard`,
-        position: 'top',
-        topOffset: 60,
-      });
-    } catch (error) {
-      console.error('Copy error:', error);
-    }
-  };
-
-  const handleShareCode = async () => {
-    try {
-      await Share.share({
-        message: `My CTU Daanbantayan Campus admission tracking code is: ${trackingCode}`,
-      });
-    } catch (error) {
-      console.error('Share error:', error);
-    }
-  };
-
-  const handleLookup = async () => {
-    const codeToSearch = searchCode.trim() || trackingCode;
-    if (!codeToSearch) {
-      Toast.show({
-        type: 'error',
-        text1: 'Missing Code',
-        text2: 'Please enter a tracking code',
-        position: 'top',
-        topOffset: 60,
-      });
-      return;
-    }
-
+  const loadApplication = async () => {
+    if (!trackingCode) return;
+    
     setLoading(true);
     try {
-      const response = await trackingAPI.lookup(codeToSearch);
+      const response = await trackingAPI.lookup(trackingCode);
       setApplication(response.data);
     } catch (error) {
       Toast.show({
@@ -129,6 +94,20 @@ const TrackingScreen = ({ navigation, route }) => {
       setApplication(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopyCode = async () => {
+    try {
+      Toast.show({
+        type: 'success',
+        text1: 'Copied!',
+        text2: `Tracking code ${trackingCode} copied to clipboard`,
+        position: 'top',
+        topOffset: 60,
+      });
+    } catch (error) {
+      console.error('Copy error:', error);
     }
   };
 
@@ -249,60 +228,13 @@ const TrackingScreen = ({ navigation, route }) => {
               Save this code to track your application status anytime
             </Text>
             <View style={styles.codeActions}>
-              <TouchableOpacity style={styles.copyBtn} onPress={handleCopyCode}>
+              <TouchableOpacity style={styles.copyBtnFull} onPress={handleCopyCode}>
                 <Ionicons name="copy-outline" size={18} color={COLORS.white} />
                 <Text style={styles.copyBtnText}>Copy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.shareBtn} onPress={handleShareCode}>
-                <Ionicons name="share-social-outline" size={18} color={COLORS.white} />
-                <Text style={styles.shareBtnText}>Share</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
         )}
-
-        {/* Search Card */}
-        <Animated.View 
-          style={[
-            styles.searchCard,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <View style={styles.searchHeader}>
-            <Ionicons name="search" size={22} color={COLORS.primary} />
-            <Text style={styles.searchTitle}>Check Application Status</Text>
-          </View>
-          <Text style={styles.searchSubtitle}>
-            Enter your tracking code to view real-time updates on your application
-          </Text>
-          
-          <View style={styles.searchRow}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Enter tracking code"
-              placeholderTextColor={COLORS.mediumGray}
-              value={searchCode || trackingCode}
-              onChangeText={setSearchCode}
-              autoCapitalize="characters"
-              editable={!loading}
-            />
-            <TouchableOpacity
-              style={styles.searchButton}
-              onPress={handleLookup}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <Ionicons name="search" size={20} color={COLORS.white} />
-              )}
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
 
         {/* Application Result - Admission Process */}
         {application && (
@@ -450,7 +382,7 @@ const TrackingScreen = ({ navigation, route }) => {
           onPress={() => navigation.navigate('Notifications')}
           activeOpacity={0.6}
         >
-          <Ionicons name="heart-outline" size={26} color={COLORS.secondary} />
+          <Ionicons name="notifications-outline" size={26} color={COLORS.secondary} />
           {unreadCount > 0 && (
             <View style={styles.bottomNavBadge}>
               <Text style={styles.bottomNavBadgeText}>
@@ -585,13 +517,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-  copyBtn: {
-    flex: 1,
+  copyBtnFull: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.primary,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 10,
     gap: 6,
   },
@@ -599,70 +531,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.white,
     ...FONTS.semiBold,
-  },
-  shareBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.success,
-    paddingVertical: 12,
-    borderRadius: 10,
-    gap: 6,
-  },
-  shareBtnText: {
-    fontSize: 14,
-    color: COLORS.white,
-    ...FONTS.semiBold,
-  },
-  searchCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    ...SHADOWS.small,
-  },
-  searchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  searchTitle: {
-    fontSize: 16,
-    color: COLORS.secondary,
-    ...FONTS.bold,
-  },
-  searchSubtitle: {
-    fontSize: 13,
-    color: COLORS.mediumGray,
-    ...FONTS.regular,
-    lineHeight: 19,
-    marginBottom: 16,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    backgroundColor: COLORS.ultraLightGray,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 48,
-    fontSize: 14,
-    color: COLORS.secondary,
-    ...FONTS.medium,
-    borderWidth: 1,
-    borderColor: COLORS.lightGray,
-  },
-  searchButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   processCard: {
     backgroundColor: COLORS.white,

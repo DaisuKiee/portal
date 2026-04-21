@@ -155,15 +155,6 @@ const ProfileScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header - Threads Style */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton} activeOpacity={0.6}>
-          <Ionicons name="stats-chart-outline" size={24} color={COLORS.secondary} />
-        </TouchableOpacity>
-        
-        <View style={styles.headerSpacer} />
-        
-        <TouchableOpacity style={styles.headerButton} activeOpacity={0.6}>
-          <Ionicons name="search-outline" size={24} color={COLORS.secondary} />
-        </TouchableOpacity>
         
         <TouchableOpacity 
           style={styles.headerButton} 
@@ -306,16 +297,7 @@ const ProfileScreen = ({ navigation }) => {
               Application
             </Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'settings' && styles.tabActive]}
-            onPress={() => setActiveTab('settings')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabText, activeTab === 'settings' && styles.tabTextActive]}>
-              Settings
-            </Text>
-          </TouchableOpacity>
+      
         </View>
 
         {/* Tab Content */}
@@ -384,30 +366,6 @@ const ProfileScreen = ({ navigation }) => {
                 <Text style={styles.emptyDesc}>You haven't submitted an application</Text>
               </View>
             )}
-          </View>
-        )}
-
-        {activeTab === 'settings' && (
-          <View style={styles.tabContent}>
-            <View style={styles.settingsList}>
-              <TouchableOpacity style={styles.settingItem} activeOpacity={0.7}>
-                <Ionicons name="lock-closed-outline" size={24} color={COLORS.secondary} />
-                <Text style={styles.settingText}>Change Password</Text>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.settingItem} activeOpacity={0.7}>
-                <Ionicons name="notifications-outline" size={24} color={COLORS.secondary} />
-                <Text style={styles.settingText}>Notifications</Text>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.settingItem} activeOpacity={0.7}>
-                <Ionicons name="shield-checkmark-outline" size={24} color={COLORS.secondary} />
-                <Text style={styles.settingText}>Privacy & Security</Text>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
-              </TouchableOpacity>
-            </View>
           </View>
         )}
 
@@ -484,7 +442,7 @@ const ProfileScreen = ({ navigation }) => {
           onPress={() => navigation.navigate('Notifications')}
           activeOpacity={0.6}
         >
-          <Ionicons name="heart-outline" size={26} color={COLORS.secondary} />
+          <Ionicons name="notifications-outline" size={26} color={COLORS.secondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -526,18 +484,6 @@ const ProfileScreen = ({ navigation }) => {
                   style={styles.drawerItem}
                   onPress={() => {
                     toggleDrawer();
-                    setTimeout(() => navigation.navigate('Feed'), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="home-outline" size={26} color={COLORS.secondary} />
-                  <Text style={styles.drawerItemText}>Home</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.drawerItem}
-                  onPress={() => {
-                    toggleDrawer();
                     setTimeout(() => navigation.navigate('Notifications'), 300);
                   }}
                   activeOpacity={0.7}
@@ -545,20 +491,6 @@ const ProfileScreen = ({ navigation }) => {
                   <Ionicons name="notifications-outline" size={26} color={COLORS.secondary} />
                   <Text style={styles.drawerItemText}>Notifications</Text>
                 </TouchableOpacity>
-
-                {trackingCode && (
-                  <TouchableOpacity
-                    style={styles.drawerItem}
-                    onPress={() => {
-                      toggleDrawer();
-                      setTimeout(() => navigation.navigate('Tracking', { trackingCode }), 300);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="search-outline" size={26} color={COLORS.secondary} />
-                    <Text style={styles.drawerItemText}>Track Application</Text>
-                  </TouchableOpacity>
-                )}
 
                 <TouchableOpacity
                   style={styles.drawerItem}
@@ -570,42 +502,6 @@ const ProfileScreen = ({ navigation }) => {
                 >
                   <Ionicons name="lock-closed-outline" size={26} color={COLORS.secondary} />
                   <Text style={styles.drawerItemText}>Privacy</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.drawerItem}
-                  onPress={() => {
-                    Toast.show({
-                      type: 'info',
-                      text1: 'Content Preferences',
-                      text2: 'Feature coming soon',
-                      position: 'top',
-                      topOffset: 60,
-                    });
-                    toggleDrawer();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="grid-outline" size={26} color={COLORS.secondary} />
-                  <Text style={styles.drawerItemText}>Content preferences</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.drawerItem}
-                  onPress={() => {
-                    Toast.show({
-                      type: 'info',
-                      text1: 'Accessibility',
-                      text2: 'Feature coming soon',
-                      position: 'top',
-                      topOffset: 60,
-                    });
-                    toggleDrawer();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="accessibility-outline" size={26} color={COLORS.secondary} />
-                  <Text style={styles.drawerItemText}>Accessibility</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
