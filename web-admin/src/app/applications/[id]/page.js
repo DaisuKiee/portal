@@ -47,6 +47,20 @@ export default function ApplicationDetailsPage() {
 
   const handleUpdateStage = async (stageName) => {
     try {
+      // Check if trying to complete this stage when previous stage isn't completed
+      const stageOrder = ['application', 'screening', 'exam', 'interview', 'enrollment', 'idIssuance'];
+      const currentIndex = stageOrder.indexOf(stageName);
+      
+      if (stageData.status === 'completed' && currentIndex > 0) {
+        const previousStage = stageOrder[currentIndex - 1];
+        const previousStageStatus = application.stages?.[previousStage];
+        
+        if (previousStageStatus !== 'completed') {
+          showToast.error('Please complete the previous stage first');
+          return;
+        }
+      }
+
       // Merge form data into details
       const detailsArray = [];
       
@@ -987,39 +1001,56 @@ export default function ApplicationDetailsPage() {
 
                         {/* Action Buttons */}
                         <div className="flex gap-2 ml-4">
-                          <button
-                            onClick={() => {
-                              setEditingStage(stage.key);
-                              setStageData({ status: stageStatus, details: stageDetails });
-                              // Load existing form data if available
-                              const existingFormData = application[`${stage.key}FormData`] || {};
-                              setStageFormData(existingFormData);
-                            }}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                              isCompleted
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                : isInProgress
-                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            Edit Stage
-                          </button>
-                          
-                          {!isCompleted && (
-                            <button
-                              onClick={() => {
-                                setEditingStage(stage.key);
-                                setStageData({ status: 'completed', details: stageDetails });
-                                const existingFormData = application[`${stage.key}FormData`] || {};
-                                setStageFormData(existingFormData);
-                                handleUpdateStage(stage.key);
-                              }}
-                              className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-sm font-medium hover:shadow-lg transition-all"
-                            >
-                              Mark Complete
-                            </button>
-                          )}
+                          {/* Only allow editing if this stage or previous stages are accessible */}
+                          {(() => {
+                            const stageOrder = ['application', 'screening', 'exam', 'interview', 'enrollment', 'idIssuance'];
+                            const currentIndex = stageOrder.indexOf(stage.key);
+                            
+                            // Check if previous stage is completed (or if this is the first stage)
+                            const canEdit = currentIndex === 0 || 
+                              (currentIndex > 0 && application.stages?.[stageOrder[currentIndex - 1]] === 'completed');
+                            
+                            // Check if this stage is already completed
+                            const isAlreadyCompleted = isCompleted;
+                            
+                            return (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    if (canEdit) {
+                                      setEditingStage(stage.key);
+                                      setStageData({ status: stageStatus, details: stageDetails });
+                                      // Load existing form data if available
+                                      const existingFormData = application[`${stage.key}FormData`] || {};
+                                      setStageFormData(existingFormData);
+                                    }
+                                  }}
+                                  disabled={!canEdit}
+                                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                    !canEdit
+                                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                      : isCompleted
+                                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                      : isInProgress
+                                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  }`}
+                                  title={!canEdit ? 'Complete previous stage first' : 'Edit stage'}
+                                >
+                                  {!canEdit ? (
+                                    <>
+                                      <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                      </svg>
+                                      Locked
+                                    </>
+                                  ) : (
+                                    'Edit Stage'
+                                  )}
+                                </button>
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1038,6 +1069,34 @@ export default function ApplicationDetailsPage() {
                             </div>
                           </div>
                           
+                          {/* Stage Order Warning */}
+                          {(() => {
+                            const stageOrder = ['application', 'screening', 'exam', 'interview', 'enrollment', 'idIssuance'];
+                            const currentIndex = stageOrder.indexOf(stage.key);
+                            const previousStage = currentIndex > 0 ? stageOrder[currentIndex - 1] : null;
+                            const previousStageStatus = previousStage ? application.stages?.[previousStage] : 'completed';
+                            const previousStageName = previousStage ? stages.find(s => s.key === previousStage)?.name : '';
+                            
+                            if (previousStageStatus !== 'completed' && currentIndex > 0) {
+                              return (
+                                <div className="mb-5 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+                                  <div className="flex items-start gap-3">
+                                    <svg className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <div>
+                                      <p className="text-sm font-semibold text-yellow-800">Sequential Stage Completion Required</p>
+                                      <p className="text-sm text-yellow-700 mt-1">
+                                        You must complete <strong>"{previousStageName}"</strong> before marking this stage as completed.
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          
                           <div className="mb-5">
                             <label className="block text-sm font-semibold text-gray-700 mb-2">Stage Status</label>
                             <select
@@ -1047,7 +1106,28 @@ export default function ApplicationDetailsPage() {
                             >
                               <option value="pending">○ Pending</option>
                               <option value="in-progress">⟳ In Progress</option>
-                              <option value="completed">✓ Completed</option>
+                              <option 
+                                value="completed"
+                                disabled={(() => {
+                                  const stageOrder = ['application', 'screening', 'exam', 'interview', 'enrollment', 'idIssuance'];
+                                  const currentIndex = stageOrder.indexOf(stage.key);
+                                  if (currentIndex === 0) return false;
+                                  const previousStage = stageOrder[currentIndex - 1];
+                                  return application.stages?.[previousStage] !== 'completed';
+                                })()}
+                              >
+                                ✓ Completed {(() => {
+                                  const stageOrder = ['application', 'screening', 'exam', 'interview', 'enrollment', 'idIssuance'];
+                                  const currentIndex = stageOrder.indexOf(stage.key);
+                                  if (currentIndex > 0) {
+                                    const previousStage = stageOrder[currentIndex - 1];
+                                    if (application.stages?.[previousStage] !== 'completed') {
+                                      return '(Complete previous stage first)';
+                                    }
+                                  }
+                                  return '';
+                                })()}
+                              </option>
                             </select>
                           </div>
 
