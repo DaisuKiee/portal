@@ -1,8 +1,3 @@
 {
-  "/not-found": "app/not-found.js",
-  "/page": "app/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/applications/page": "app/applications/page.js",
-  "/users/page": "app/users/page.js",
   "/applications/[id]/page": "app/applications/[id]/page.js"
 }

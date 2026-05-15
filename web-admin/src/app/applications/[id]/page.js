@@ -27,6 +27,7 @@ export default function ApplicationDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [editingStage, setEditingStage] = useState(null);
   const [stageData, setStageData] = useState({ status: 'pending', details: [] });
+  const [stageFormData, setStageFormData] = useState({});
 
   useEffect(() => {
     if (params.id) loadApplication();
@@ -46,12 +47,418 @@ export default function ApplicationDetailsPage() {
 
   const handleUpdateStage = async (stageName) => {
     try {
-      await adminAPI.updateStage(params.id, stageName, stageData);
+      // Merge form data into details
+      const detailsArray = [];
+      
+      // Add form data as structured details
+      Object.entries(stageFormData).forEach(([key, value]) => {
+        if (value) {
+          const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+          detailsArray.push(`${label}: ${value}`);
+        }
+      });
+      
+      // Add any additional text details
+      if (stageData.details && stageData.details.length > 0) {
+        detailsArray.push(...stageData.details);
+      }
+
+      const updateData = {
+        status: stageData.status,
+        details: detailsArray,
+        formData: stageFormData // Store structured data separately
+      };
+
+      await adminAPI.updateStage(params.id, stageName, updateData);
       showToast.success('Stage updated successfully');
       setEditingStage(null);
+      setStageFormData({});
       loadApplication();
     } catch (error) {
       showToast.error('Failed to update stage');
+    }
+  };
+
+  // Render stage-specific form fields
+  const renderStageForm = (stageKey) => {
+    switch (stageKey) {
+      case 'application':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Application Review Status</label>
+              <select
+                value={stageFormData.reviewStatus || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, reviewStatus: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select status</option>
+                <option value="Under Review">Under Review</option>
+                <option value="Documents Verified">Documents Verified</option>
+                <option value="Approved for Next Stage">Approved for Next Stage</option>
+                <option value="Needs Clarification">Needs Clarification</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Reviewed By</label>
+              <input
+                type="text"
+                value={stageFormData.reviewedBy || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, reviewedBy: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Admin name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Review Date</label>
+              <input
+                type="date"
+                value={stageFormData.reviewDate || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, reviewDate: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        );
+
+      case 'screening':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Screening Result</label>
+              <select
+                value={stageFormData.screeningResult || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, screeningResult: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select result</option>
+                <option value="Passed">Passed</option>
+                <option value="Failed">Failed</option>
+                <option value="Conditional Pass">Conditional Pass</option>
+                <option value="Pending Review">Pending Review</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">GWA Verification</label>
+              <input
+                type="text"
+                value={stageFormData.gwaVerification || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, gwaVerification: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., 90.5% - Verified"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Documents Status</label>
+              <select
+                value={stageFormData.documentsStatus || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, documentsStatus: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select status</option>
+                <option value="All Complete">All Complete</option>
+                <option value="Missing Documents">Missing Documents</option>
+                <option value="Under Verification">Under Verification</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Screened By</label>
+              <input
+                type="text"
+                value={stageFormData.screenedBy || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, screenedBy: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Staff name"
+              />
+            </div>
+          </div>
+        );
+
+      case 'exam':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Exam Schedule</label>
+              <input
+                type="datetime-local"
+                value={stageFormData.examSchedule || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, examSchedule: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Exam Venue</label>
+              <input
+                type="text"
+                value={stageFormData.examVenue || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, examVenue: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., Room 301, Main Building"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Exam Score</label>
+              <input
+                type="text"
+                value={stageFormData.examScore || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, examScore: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., 85/100 or 85%"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Exam Result</label>
+              <select
+                value={stageFormData.examResult || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, examResult: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select result</option>
+                <option value="Passed">Passed</option>
+                <option value="Failed">Failed</option>
+                <option value="For Re-examination">For Re-examination</option>
+                <option value="Pending">Pending</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Proctor Name</label>
+              <input
+                type="text"
+                value={stageFormData.proctorName || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, proctorName: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Exam proctor"
+              />
+            </div>
+          </div>
+        );
+
+      case 'interview':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Interview Schedule</label>
+              <input
+                type="datetime-local"
+                value={stageFormData.interviewSchedule || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, interviewSchedule: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Interview Mode</label>
+              <select
+                value={stageFormData.interviewMode || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, interviewMode: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select mode</option>
+                <option value="In-Person">In-Person</option>
+                <option value="Online (Zoom)">Online (Zoom)</option>
+                <option value="Online (Google Meet)">Online (Google Meet)</option>
+                <option value="Phone">Phone</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Interview Location/Link</label>
+              <input
+                type="text"
+                value={stageFormData.interviewLocation || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, interviewLocation: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Room number or meeting link"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Interviewer(s)</label>
+              <input
+                type="text"
+                value={stageFormData.interviewers || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, interviewers: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., Dr. Smith, Prof. Johnson"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Interview Rating</label>
+              <select
+                value={stageFormData.interviewRating || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, interviewRating: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select rating</option>
+                <option value="Excellent">Excellent</option>
+                <option value="Very Good">Very Good</option>
+                <option value="Good">Good</option>
+                <option value="Fair">Fair</option>
+                <option value="Poor">Poor</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Interview Result</label>
+              <select
+                value={stageFormData.interviewResult || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, interviewResult: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select result</option>
+                <option value="Passed">Passed</option>
+                <option value="Failed">Failed</option>
+                <option value="Pending Decision">Pending Decision</option>
+              </select>
+            </div>
+          </div>
+        );
+
+      case 'enrollment':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Enrollment Status</label>
+              <select
+                value={stageFormData.enrollmentStatus || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, enrollmentStatus: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select status</option>
+                <option value="Accepted">Accepted</option>
+                <option value="Waitlisted">Waitlisted</option>
+                <option value="Rejected">Rejected</option>
+                <option value="Pending">Pending</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Assigned Course</label>
+              <input
+                type="text"
+                value={stageFormData.assignedCourse || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, assignedCourse: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Final course assignment"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Academic Year</label>
+              <input
+                type="text"
+                value={stageFormData.academicYear || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, academicYear: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., 2024-2025"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Semester</label>
+              <select
+                value={stageFormData.semester || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, semester: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select semester</option>
+                <option value="1st Semester">1st Semester</option>
+                <option value="2nd Semester">2nd Semester</option>
+                <option value="Summer">Summer</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Enrollment Deadline</label>
+              <input
+                type="date"
+                value={stageFormData.enrollmentDeadline || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, enrollmentDeadline: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Scholarship Offered</label>
+              <select
+                value={stageFormData.scholarshipOffered || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, scholarshipOffered: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select option</option>
+                <option value="Full Scholarship">Full Scholarship</option>
+                <option value="Partial Scholarship">Partial Scholarship</option>
+                <option value="No Scholarship">No Scholarship</option>
+              </select>
+            </div>
+          </div>
+        );
+
+      case 'idIssuance':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Student ID Number</label>
+              <input
+                type="text"
+                value={stageFormData.studentIdNumber || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, studentIdNumber: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., 2024-12345"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">University Email</label>
+              <input
+                type="email"
+                value={stageFormData.universityEmail || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, universityEmail: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., student@ctu.edu.ph"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">ID Card Status</label>
+              <select
+                value={stageFormData.idCardStatus || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, idCardStatus: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select status</option>
+                <option value="Printed">Printed</option>
+                <option value="Ready for Pickup">Ready for Pickup</option>
+                <option value="Released">Released</option>
+                <option value="Pending">Pending</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">ID Release Date</label>
+              <input
+                type="date"
+                value={stageFormData.idReleaseDate || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, idReleaseDate: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Portal Access</label>
+              <select
+                value={stageFormData.portalAccess || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, portalAccess: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select status</option>
+                <option value="Activated">Activated</option>
+                <option value="Pending Activation">Pending Activation</option>
+                <option value="Credentials Sent">Credentials Sent</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Issued By</label>
+              <input
+                type="text"
+                value={stageFormData.issuedBy || ''}
+                onChange={(e) => setStageFormData({ ...stageFormData, issuedBy: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Staff name"
+              />
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
     }
   };
 
@@ -584,6 +991,9 @@ export default function ApplicationDetailsPage() {
                             onClick={() => {
                               setEditingStage(stage.key);
                               setStageData({ status: stageStatus, details: stageDetails });
+                              // Load existing form data if available
+                              const existingFormData = application[`${stage.key}FormData`] || {};
+                              setStageFormData(existingFormData);
                             }}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                               isCompleted
@@ -601,6 +1011,8 @@ export default function ApplicationDetailsPage() {
                               onClick={() => {
                                 setEditingStage(stage.key);
                                 setStageData({ status: 'completed', details: stageDetails });
+                                const existingFormData = application[`${stage.key}FormData`] || {};
+                                setStageFormData(existingFormData);
                                 handleUpdateStage(stage.key);
                               }}
                               className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-sm font-medium hover:shadow-lg transition-all"
@@ -615,14 +1027,14 @@ export default function ApplicationDetailsPage() {
                     {/* Edit Modal */}
                     {editingStage === stage.key && (
                       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+                        <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
                           <div className="flex items-center gap-3 mb-6">
                             <div className={`w-12 h-12 ${stage.bgColor} rounded-xl flex items-center justify-center`}>
                               <FontAwesomeIcon icon={stage.icon} className={`${stage.color} text-xl`} />
                             </div>
                             <div>
                               <h4 className="text-xl font-bold text-gray-900">Edit {stage.name}</h4>
-                              <p className="text-sm text-gray-600">Update stage status and details</p>
+                              <p className="text-sm text-gray-600">Update stage status and collect relevant data</p>
                             </div>
                           </div>
                           
@@ -639,20 +1051,31 @@ export default function ApplicationDetailsPage() {
                             </select>
                           </div>
 
+                          {/* Stage-Specific Form Fields */}
+                          <div className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                            <h5 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Stage-Specific Information
+                            </h5>
+                            {renderStageForm(stage.key)}
+                          </div>
+
                           <div className="mb-6">
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
-                              Stage Details
-                              <span className="text-gray-500 font-normal ml-2">(one per line)</span>
+                              Additional Notes
+                              <span className="text-gray-500 font-normal ml-2">(optional)</span>
                             </label>
                             <textarea
                               value={stageData.details.join('\n')}
                               onChange={(e) => setStageData({ ...stageData, details: e.target.value.split('\n').filter(d => d.trim()) })}
                               className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              rows="5"
-                              placeholder="Enter stage details or notes...&#10;Example:&#10;- Exam scheduled for June 15, 2024&#10;- Venue: Room 301&#10;- Time: 9:00 AM"
+                              rows="4"
+                              placeholder="Add any additional notes or comments..."
                             />
                             <p className="text-xs text-gray-500 mt-2">
-                              Add notes, dates, or important information about this stage
+                              Add extra information not covered by the form fields above
                             </p>
                           </div>
 
@@ -664,7 +1087,10 @@ export default function ApplicationDetailsPage() {
                               Save Changes
                             </button>
                             <button
-                              onClick={() => setEditingStage(null)}
+                              onClick={() => {
+                                setEditingStage(null);
+                                setStageFormData({});
+                              }}
                               className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all"
                             >
                               Cancel

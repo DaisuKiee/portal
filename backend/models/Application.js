@@ -28,13 +28,19 @@ const applicationSchema = new mongoose.Schema({
     type: Date
   },
   stages: {
-    application: { type: String, enum: ['completed', 'pending'], default: 'completed' },
-    screening: { type: String, enum: ['completed', 'pending'], default: 'pending' },
-    exam: { type: String, enum: ['completed', 'pending'], default: 'pending' },
-    interview: { type: String, enum: ['completed', 'pending'], default: 'pending' },
-    enrollment: { type: String, enum: ['completed', 'pending'], default: 'pending' },
-    idIssuance: { type: String, enum: ['completed', 'pending'], default: 'pending' },
+    application: { type: String, enum: ['completed', 'in-progress', 'pending'], default: 'completed' },
+    screening: { type: String, enum: ['completed', 'in-progress', 'pending'], default: 'pending' },
+    exam: { type: String, enum: ['completed', 'in-progress', 'pending'], default: 'pending' },
+    interview: { type: String, enum: ['completed', 'in-progress', 'pending'], default: 'pending' },
+    enrollment: { type: String, enum: ['completed', 'in-progress', 'pending'], default: 'pending' },
+    idIssuance: { type: String, enum: ['completed', 'in-progress', 'pending'], default: 'pending' },
   },
+  applicationDetails: [{
+    type: String
+  }],
+  screeningDetails: [{
+    type: String
+  }],
   examDetails: [{
     type: String
   }],
@@ -44,9 +50,34 @@ const applicationSchema = new mongoose.Schema({
   enrollmentDetails: [{
     type: String
   }],
-  idDetails: [{
+  idIssuanceDetails: [{
     type: String
   }],
+  // Store structured form data for each stage
+  applicationFormData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  screeningFormData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  examFormData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  interviewFormData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  enrollmentFormData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  idIssuanceFormData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   disqualificationReasons: [{
     type: String
   }],

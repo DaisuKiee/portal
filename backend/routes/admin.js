@@ -217,9 +217,9 @@ router.put('/applications/:id/stages', async (req, res) => {
 router.put('/applications/:id/stages/:stage', async (req, res) => {
   try {
     const { id, stage } = req.params;
-    const { status, details } = req.body;
+    const { status, details, formData } = req.body;
 
-    console.log(`Updating stage ${stage} for application ${id}:`, { status, details });
+    console.log(`Updating stage ${stage} for application ${id}:`, { status, details, formData });
 
     const application = await Application.findById(id);
     if (!application) {
@@ -238,9 +238,18 @@ router.put('/applications/:id/stages/:stage', async (req, res) => {
     const detailsField = `${stage}Details`;
     application[detailsField] = details || [];
 
+    // Update stage form data
+    const formDataField = `${stage}FormData`;
+    if (formData) {
+      application[formDataField] = formData;
+    }
+
     // Mark the fields as modified (important for nested objects)
     application.markModified('stages');
     application.markModified(detailsField);
+    if (formData) {
+      application.markModified(formDataField);
+    }
 
     await application.save();
 
@@ -270,7 +279,8 @@ router.put('/applications/:id/stages/:stage', async (req, res) => {
       stage: {
         name: stage,
         status: application.stages[stage],
-        details: application[detailsField]
+        details: application[detailsField],
+        formData: application[formDataField]
       }
     });
   } catch (error) {
