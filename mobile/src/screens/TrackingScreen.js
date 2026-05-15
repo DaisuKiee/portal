@@ -123,35 +123,70 @@ const TrackingScreen = ({ navigation, route }) => {
     }, 300);
   };
 
-  const ProcessStage = ({ title, status, details }) => {
+  const ProcessStage = ({ title, status, details, icon, formData }) => {
     const getIcon = () => {
       if (status === 'completed') return 'checkmark-circle';
-      return 'ellipsis-horizontal-circle';
+      if (status === 'in-progress') return 'sync-circle';
+      return 'ellipse-outline';
     };
 
     const getColor = () => {
       if (status === 'completed') return '#4CAF50';
+      if (status === 'in-progress') return '#2196F3';
       return '#9E9E9E';
     };
 
+    const getBgColor = () => {
+      if (status === 'completed') return '#E8F5E9';
+      if (status === 'in-progress') return '#E3F2FD';
+      return '#F5F5F5';
+    };
+
+    const getStatusText = () => {
+      if (status === 'completed') return '✓ Completed';
+      if (status === 'in-progress') return '⟳ In Progress';
+      return '○ Pending';
+    };
+
+    // Combine form data and details
+    const allDetails = [];
+    
+    // Add form data as formatted details
+    if (formData && Object.keys(formData).length > 0) {
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value) {
+          const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+          allDetails.push(`${label}: ${value}`);
+        }
+      });
+    }
+    
+    // Add additional details
+    if (details && details.length > 0) {
+      allDetails.push(...details);
+    }
+
     return (
       <View style={styles.stageContainer}>
-        <View style={styles.stageHeader}>
+        <View style={[styles.stageHeader, { backgroundColor: getBgColor() }]}>
           <View style={styles.stageLeft}>
-            <Ionicons name={getIcon()} size={28} color={getColor()} />
-            <Text style={styles.stageTitle}>{title}</Text>
-          </View>
-          {status === 'completed' && (
-            <View style={styles.completedBadge}>
-              <Text style={styles.completedText}>Completed</Text>
+            <View style={[styles.stageIconCircle, { backgroundColor: getColor() + '20', borderColor: getColor() }]}>
+              <Ionicons name={icon || getIcon()} size={24} color={getColor()} />
             </View>
-          )}
+            <View style={styles.stageTitleContainer}>
+              <Text style={styles.stageTitle}>{title}</Text>
+              <Text style={[styles.stageStatus, { color: getColor() }]}>
+                {getStatusText()}
+              </Text>
+            </View>
+          </View>
         </View>
-        {details && details.length > 0 && (
-          <View style={styles.stageDetails}>
-            {details.map((detail, index) => (
-              <View key={index} style={styles.detailBox}>
-                <Ionicons name="information-circle" size={16} color={COLORS.white} />
+        
+        {allDetails.length > 0 && (
+          <View style={[styles.stageDetails, { backgroundColor: getBgColor() }]}>
+            {allDetails.map((detail, index) => (
+              <View key={index} style={styles.detailRow}>
+                <View style={[styles.detailDot, { backgroundColor: getColor() }]} />
                 <Text style={styles.detailText}>{detail}</Text>
               </View>
             ))}
@@ -290,6 +325,27 @@ const TrackingScreen = ({ navigation, route }) => {
               <Text style={styles.processTitle}>Admission Process</Text>
             </View>
 
+            {/* Progress Indicator */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressLabel}>Overall Progress</Text>
+                <Text style={styles.progressPercentage}>
+                  {Math.round((Object.values(application.stages || {}).filter(s => s === 'completed').length / 6) * 100)}%
+                </Text>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View 
+                  style={[
+                    styles.progressBar, 
+                    { width: `${(Object.values(application.stages || {}).filter(s => s === 'completed').length / 6) * 100}%` }
+                  ]} 
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {Object.values(application.stages || {}).filter(s => s === 'completed').length} of 6 stages completed
+              </Text>
+            </View>
+
             {/* View Details Button */}
             <TouchableOpacity 
               style={styles.viewDetailsButton}
@@ -301,41 +357,56 @@ const TrackingScreen = ({ navigation, route }) => {
               <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
             </TouchableOpacity>
 
-            <ProcessStage
-              title="Application"
-              status={application.stages?.application || 'completed'}
-              details={[]}
-            />
+            {/* Stages Timeline */}
+            <View style={styles.stagesTimeline}>
+              <ProcessStage
+                title="Application"
+                icon="document-text"
+                status={application.stages?.application || 'completed'}
+                details={application.applicationDetails || []}
+                formData={application.applicationFormData || {}}
+              />
 
-            <ProcessStage
-              title="Screening"
-              status={application.stages?.screening || 'pending'}
-              details={[]}
-            />
+              <ProcessStage
+                title="Screening"
+                icon="search"
+                status={application.stages?.screening || 'pending'}
+                details={application.screeningDetails || []}
+                formData={application.screeningFormData || {}}
+              />
 
-            <ProcessStage
-              title="Entrance Examination"
-              status={application.stages?.exam || 'pending'}
-              details={application.examDetails || []}
-            />
+              <ProcessStage
+                title="Entrance Examination"
+                icon="clipboard"
+                status={application.stages?.exam || 'pending'}
+                details={application.examDetails || []}
+                formData={application.examFormData || {}}
+              />
 
-            <ProcessStage
-              title="Interview"
-              status={application.stages?.interview || 'pending'}
-              details={application.interviewDetails || []}
-            />
+              <ProcessStage
+                title="Interview"
+                icon="chatbubbles"
+                status={application.stages?.interview || 'pending'}
+                details={application.interviewDetails || []}
+                formData={application.interviewFormData || {}}
+              />
 
-            <ProcessStage
-              title="Enrollment Selection"
-              status={application.stages?.enrollment || 'pending'}
-              details={application.enrollmentDetails || []}
-            />
+              <ProcessStage
+                title="Enrollment Selection"
+                icon="checkmark-done"
+                status={application.stages?.enrollment || 'pending'}
+                details={application.enrollmentDetails || []}
+                formData={application.enrollmentFormData || {}}
+              />
 
-            <ProcessStage
-              title="ID & Email Issuance"
-              status={application.stages?.idIssuance || 'pending'}
-              details={application.idDetails || []}
-            />
+              <ProcessStage
+                title="ID & Email Issuance"
+                icon="card"
+                status={application.stages?.idIssuance || 'pending'}
+                details={application.idIssuanceDetails || []}
+                formData={application.idIssuanceFormData || {}}
+              />
+            </View>
           </Animated.View>
         )}
 
@@ -623,7 +694,7 @@ const styles = StyleSheet.create({
   },
   processCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16,
     ...SHADOWS.medium,
@@ -639,6 +710,46 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: COLORS.white,
     ...FONTS.bold,
+  },
+  progressContainer: {
+    padding: 16,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: COLORS.darkGray,
+    ...FONTS.semiBold,
+  },
+  progressPercentage: {
+    fontSize: 18,
+    color: COLORS.primary,
+    ...FONTS.bold,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
+    textAlign: 'center',
   },
   viewDetailsButton: {
     flexDirection: 'row',
@@ -656,6 +767,9 @@ const styles = StyleSheet.create({
     ...FONTS.semiBold,
     flex: 1,
   },
+  stagesTimeline: {
+    backgroundColor: COLORS.white,
+  },
   stageContainer: {
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGray,
@@ -665,7 +779,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: COLORS.white,
   },
   stageLeft: {
     flexDirection: 'row',
@@ -673,11 +786,26 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
+  stageIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+  },
+  stageTitleContainer: {
+    flex: 1,
+  },
   stageTitle: {
     fontSize: 15,
     color: COLORS.secondary,
-    ...FONTS.semiBold,
-    flex: 1,
+    ...FONTS.bold,
+    marginBottom: 2,
+  },
+  stageStatus: {
+    fontSize: 12,
+    ...FONTS.medium,
   },
   completedBadge: {
     backgroundColor: '#4CAF50' + '20',
@@ -691,9 +819,27 @@ const styles = StyleSheet.create({
     ...FONTS.bold,
   },
   stageDetails: {
-    backgroundColor: '#E3F2FD',
-    padding: 12,
+    padding: 16,
+    paddingTop: 8,
     gap: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  detailDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
+  },
+  detailText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.darkGray,
+    ...FONTS.regular,
+    lineHeight: 19,
   },
   detailBox: {
     flexDirection: 'row',
@@ -702,13 +848,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     gap: 8,
-  },
-  detailText: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.white,
-    ...FONTS.medium,
-    lineHeight: 19,
   },
   disqualificationCard: {
     backgroundColor: '#FFEBEE',
