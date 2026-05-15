@@ -462,96 +462,221 @@ export default function ApplicationDetailsPage() {
           )}
         </div>
 
-        {/* Stages */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Admission Process Stages</h3>
-          <div className="space-y-4">
-            {stages.map((stage) => {
-              const stageStatus = application.stages?.[stage.key] || 'pending';
-              const stageDetails = application[`${stage.key}Details`] || [];
+        {/* Admission Process Stages - Enhanced Timeline */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Admission Process Stages</h3>
+              <p className="text-sm text-gray-600 mt-1">Track the applicant's progress through each stage</p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-blue-600">
+                {stages.filter(s => (application.stages?.[s.key] || 'pending') === 'completed').length}/{stages.length}
+              </div>
+              <div className="text-xs text-gray-500">Stages Completed</div>
+            </div>
+          </div>
 
-              return (
-                <div key={stage.key} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-10 h-10 ${stage.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                        <FontAwesomeIcon icon={stage.icon} className={`${stage.color} text-lg`} />
-                      </div>
-                      <span className="font-medium">{stage.name}</span>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        stageStatus === 'completed' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {stageStatus}
-                      </span>
+          {/* Progress Bar */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+              <span className="text-sm font-semibold text-blue-600">
+                {Math.round((stages.filter(s => (application.stages?.[s.key] || 'pending') === 'completed').length / stages.length) * 100)}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 shadow-sm"
+                style={{ width: `${(stages.filter(s => (application.stages?.[s.key] || 'pending') === 'completed').length / stages.length) * 100}%` }}
+              ></div>
+            </div>
+          </div>
+
+          {/* Timeline View */}
+          <div className="relative">
+            {/* Vertical Line */}
+            <div className="absolute left-[29px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-gray-200 via-gray-300 to-gray-200"></div>
+
+            <div className="space-y-6">
+              {stages.map((stage, index) => {
+                const stageStatus = application.stages?.[stage.key] || 'pending';
+                const stageDetails = application[`${stage.key}Details`] || [];
+                const isCompleted = stageStatus === 'completed';
+                const isInProgress = stageStatus === 'in-progress';
+                const isPending = stageStatus === 'pending';
+
+                return (
+                  <div key={stage.key} className="relative">
+                    {/* Timeline Node */}
+                    <div className={`absolute left-0 w-[60px] h-[60px] rounded-full flex items-center justify-center z-10 transition-all duration-300 ${
+                      isCompleted 
+                        ? 'bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-200' 
+                        : isInProgress
+                        ? 'bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg shadow-blue-200 animate-pulse'
+                        : 'bg-white border-4 border-gray-300'
+                    }`}>
+                      <FontAwesomeIcon 
+                        icon={isCompleted ? faCheckCircle : stage.icon} 
+                        className={`text-2xl ${
+                          isCompleted 
+                            ? 'text-white' 
+                            : isInProgress
+                            ? 'text-white'
+                            : stage.color
+                        }`} 
+                      />
                     </div>
-                    <button
-                      onClick={() => {
-                        setEditingStage(stage.key);
-                        setStageData({ status: stageStatus, details: stageDetails });
-                      }}
-                      className="text-blue-600 hover:text-blue-800 text-sm"
-                    >
-                      Edit
-                    </button>
+
+                    {/* Stage Content Card */}
+                    <div className={`ml-20 border-2 rounded-xl p-5 transition-all duration-300 ${
+                      isCompleted 
+                        ? 'border-green-300 bg-gradient-to-br from-green-50 to-white shadow-md hover:shadow-lg' 
+                        : isInProgress
+                        ? 'border-blue-300 bg-gradient-to-br from-blue-50 to-white shadow-md hover:shadow-lg'
+                        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                    }`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className={`text-lg font-bold ${
+                              isCompleted ? 'text-green-900' : isInProgress ? 'text-blue-900' : 'text-gray-700'
+                            }`}>
+                              {index + 1}. {stage.name}
+                            </h4>
+                            <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                              isCompleted 
+                                ? 'bg-green-100 text-green-800' 
+                                : isInProgress
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {isCompleted ? '✓ Completed' : isInProgress ? '⟳ In Progress' : '○ Pending'}
+                            </span>
+                          </div>
+                          
+                          {/* Stage Details */}
+                          {stageDetails.length > 0 && (
+                            <div className="space-y-2 mt-3">
+                              {stageDetails.map((detail, idx) => (
+                                <div key={idx} className="flex items-start gap-2">
+                                  <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${
+                                    isCompleted ? 'bg-green-500' : isInProgress ? 'bg-blue-500' : 'bg-gray-400'
+                                  }`}></div>
+                                  <p className={`text-sm ${
+                                    isCompleted ? 'text-green-800' : isInProgress ? 'text-blue-800' : 'text-gray-600'
+                                  }`}>
+                                    {detail}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {stageDetails.length === 0 && (
+                            <p className="text-sm text-gray-500 italic">No details added yet</p>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => {
+                              setEditingStage(stage.key);
+                              setStageData({ status: stageStatus, details: stageDetails });
+                            }}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              isCompleted
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : isInProgress
+                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            Edit Stage
+                          </button>
+                          
+                          {!isCompleted && (
+                            <button
+                              onClick={() => {
+                                setEditingStage(stage.key);
+                                setStageData({ status: 'completed', details: stageDetails });
+                                handleUpdateStage(stage.key);
+                              }}
+                              className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-sm font-medium hover:shadow-lg transition-all"
+                            >
+                              Mark Complete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Edit Modal */}
+                    {editingStage === stage.key && (
+                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className={`w-12 h-12 ${stage.bgColor} rounded-xl flex items-center justify-center`}>
+                              <FontAwesomeIcon icon={stage.icon} className={`${stage.color} text-xl`} />
+                            </div>
+                            <div>
+                              <h4 className="text-xl font-bold text-gray-900">Edit {stage.name}</h4>
+                              <p className="text-sm text-gray-600">Update stage status and details</p>
+                            </div>
+                          </div>
+                          
+                          <div className="mb-5">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Stage Status</label>
+                            <select
+                              value={stageData.status}
+                              onChange={(e) => setStageData({ ...stageData, status: e.target.value })}
+                              className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            >
+                              <option value="pending">○ Pending</option>
+                              <option value="in-progress">⟳ In Progress</option>
+                              <option value="completed">✓ Completed</option>
+                            </select>
+                          </div>
+
+                          <div className="mb-6">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                              Stage Details
+                              <span className="text-gray-500 font-normal ml-2">(one per line)</span>
+                            </label>
+                            <textarea
+                              value={stageData.details.join('\n')}
+                              onChange={(e) => setStageData({ ...stageData, details: e.target.value.split('\n').filter(d => d.trim()) })}
+                              className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              rows="5"
+                              placeholder="Enter stage details or notes...&#10;Example:&#10;- Exam scheduled for June 15, 2024&#10;- Venue: Room 301&#10;- Time: 9:00 AM"
+                            />
+                            <p className="text-xs text-gray-500 mt-2">
+                              Add notes, dates, or important information about this stage
+                            </p>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => handleUpdateStage(stage.key)}
+                              className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
+                            >
+                              Save Changes
+                            </button>
+                            <button
+                              onClick={() => setEditingStage(null)}
+                              className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  {stageDetails.length > 0 && (
-                    <div className="mt-2 pl-14">
-                      {stageDetails.map((detail, idx) => (
-                        <p key={idx} className="text-sm text-gray-600">• {detail}</p>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Edit Modal */}
-                  {editingStage === stage.key && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                        <h4 className="text-lg font-semibold mb-4">Edit {stage.name}</h4>
-                        
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium mb-2">Status</label>
-                          <select
-                            value={stageData.status}
-                            onChange={(e) => setStageData({ ...stageData, status: e.target.value })}
-                            className="w-full border rounded px-3 py-2"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="completed">Completed</option>
-                          </select>
-                        </div>
-
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium mb-2">Details (one per line)</label>
-                          <textarea
-                            value={stageData.details.join('\n')}
-                            onChange={(e) => setStageData({ ...stageData, details: e.target.value.split('\n').filter(d => d.trim()) })}
-                            className="w-full border rounded px-3 py-2"
-                            rows="4"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => handleUpdateStage(stage.key)}
-                            className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={() => setEditingStage(null)}
-                            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

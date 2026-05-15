@@ -212,6 +212,73 @@ router.put('/applications/:id/stages', async (req, res) => {
   }
 });
 
+// @route   PUT /api/admin/applications/:id/stages/:stage
+// @desc    Update individual stage status and details
+router.put('/applications/:id/stages/:stage', async (req, res) => {
+  try {
+    const { id, stage } = req.params;
+    const { status, details } = req.body;
+
+    console.log(`Updating stage ${stage} for application ${id}:`, { status, details });
+
+    const application = await Application.findById(id);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Initialize stages object if it doesn't exist
+    if (!application.stages) {
+      application.stages = {};
+    }
+
+    // Update the specific stage status
+    application.stages[stage] = status;
+
+    // Update stage details based on the stage name
+    const detailsField = `${stage}Details`;
+    application[detailsField] = details || [];
+
+    // Mark the fields as modified (important for nested objects)
+    application.markModified('stages');
+    application.markModified(detailsField);
+
+    await application.save();
+
+    // Create notification for user about stage update
+    const stageNames = {
+      application: 'Application',
+      screening: 'Screening',
+      exam: 'Entrance Exam',
+      interview: 'Interview',
+      enrollment: 'Enrollment Selection',
+      idIssuance: 'ID & Email Issuance'
+    };
+
+    const stageName = stageNames[stage] || stage;
+    const statusText = status === 'completed' ? 'completed' : status === 'in-progress' ? 'in progress' : 'pending';
+
+    await Notification.create({
+      user: application.userId,
+      type: 'application_update',
+      title: `${stageName} Stage Updated`,
+      message: `Your ${stageName} stage is now ${statusText}. Check your tracking page for details.`,
+      data: { applicationId: application._id, stage, status },
+    });
+
+    res.json({ 
+      message: 'Stage updated successfully', 
+      stage: {
+        name: stage,
+        status: application.stages[stage],
+        details: application[detailsField]
+      }
+    });
+  } catch (error) {
+    console.error('Update stage error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // @route   GET /api/admin/applications/:id
 // @desc    Get single application details
 router.get('/applications/:id', async (req, res) => {
