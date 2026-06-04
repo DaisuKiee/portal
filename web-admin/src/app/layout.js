@@ -3,6 +3,7 @@ import './globals.css';
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from 'react-toastify';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -145,9 +146,11 @@ export default function RootLayout({ children }) {
         }} />
       </head>
       <body className={inter.className}>
-        {children}
-        <ToastContainer />
-        <ConfirmDialog />
+        <ThemeProvider>
+          {children}
+          <ToastContainer />
+          <ConfirmDialog />
+        </ThemeProvider>
       </body>
     </html>
   );

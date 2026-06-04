@@ -18,6 +18,9 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
+import TwoFactorSetupScreen from '../screens/TwoFactorSetupScreen';
+import ActiveSessionsScreen from '../screens/ActiveSessionsScreen';
+import LoginHistoryScreen from '../screens/LoginHistoryScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
@@ -135,6 +138,9 @@ const AppNavigator = () => {
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
+      <Stack.Screen name="TwoFactorSetup" component={TwoFactorSetupScreen} />
+      <Stack.Screen name="ActiveSessions" component={ActiveSessionsScreen} />
+      <Stack.Screen name="LoginHistory" component={LoginHistoryScreen} />
       <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       <Stack.Screen name="AdminApplications" component={AdminApplicationsScreen} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />

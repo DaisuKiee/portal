@@ -4,6 +4,8 @@ const { adminAuth } = require('../middleware/auth');
 const Application = require('../models/Application');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 
 // All routes require admin authentication
 router.use(adminAuth);
@@ -489,7 +491,7 @@ const Post = require('../models/Post');
 router.get('/posts', async (req, res) => {
   try {
     const posts = await Post.find()
-      .populate('author', 'fullName email role')
+      .populate('author', 'fullName email role profilePicture')
       .sort({ createdAt: -1 });
 
     const formattedPosts = posts.map(post => ({
@@ -497,6 +499,7 @@ router.get('/posts', async (req, res) => {
       author: {
         name: post.authorName || post.author?.fullName || 'Unknown User',
         role: post.author?.role || post.authorRole,
+        profilePicture: post.author?.profilePicture || null
       },
       content: post.content,
       isPinned: post.isPinned || false,
@@ -585,6 +588,336 @@ router.put('/tracking/stages', async (req, res) => {
     res.json({ message: 'Tracking stages updated successfully', stages: req.body });
   } catch (error) {
     console.error('Update tracking stages error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/admin/profile/hash
+// @desc    Get admin password hash (masked) - requires 2FA code
+router.post('/profile/hash', async (req, res) => {
+  try {
+    const { twoFactorCode } = req.body;
+    
+    if (!twoFactorCode) {
+      return res.status(400).json({ message: 'Authentication code required' });
+    }
+
+    const admin = await User.findById(req.user._id).select('password twoFactorSecret twoFactorEnabled twoFactorBackupCodes');
+    
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    // Verify 2FA code if enabled
+    if (admin.twoFactorEnabled) {
+      // Verify TOTP code
+      const verified = speakeasy.totp.verify({
+        secret: admin.twoFactorSecret,
+        encoding: 'base32',
+        token: twoFactorCode,
+        window: 2
+      });
+
+      if (!verified) {
+        // Check backup codes
+        const backupCode = admin.twoFactorBackupCodes.find(
+          bc => bc.code === twoFactorCode.toUpperCase() && !bc.used
+        );
+
+        if (!backupCode) {
+          return res.status(400).json({ message: 'Invalid authentication code' });
+        }
+
+        // Mark backup code as used
+        backupCode.used = true;
+        await admin.save();
+      }
+    } else {
+      // If 2FA not enabled, still require a valid code format but don't verify
+      if (twoFactorCode.length !== 6) {
+        return res.status(400).json({ message: '2FA must be enabled to generate password hash' });
+      }
+    }
+
+    // Mask the hash - show first 2 characters and rest as asterisks
+    const hash = admin.password;
+    const maskedHash = hash.substring(0, 2) + '*'.repeat(Math.max(hash.length - 2, 15));
+
+    res.json({ 
+      hash: maskedHash,
+      fullHash: hash // For copying purposes
+    });
+  } catch (error) {
+    console.error('Get admin hash error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// 2FA Routes
+// @route   POST /api/admin/2fa/setup
+// @desc    Setup 2FA for admin
+router.post('/2fa/setup', async (req, res) => {
+  try {
+    const admin = await User.findById(req.user._id);
+    
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    // Generate secret
+    const secret = speakeasy.generateSecret({
+      name: `CTU Admin Portal (${admin.email})`,
+      issuer: 'CTU Admission Portal',
+      length: 32
+    });
+
+    // Generate QR code
+    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+
+    // Generate backup codes
+    const backupCodes = [];
+    for (let i = 0; i < 10; i++) {
+      const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+      backupCodes.push({ code, used: false });
+    }
+
+    // Save secret temporarily (not enabled yet)
+    admin.twoFactorSecret = secret.base32;
+    admin.twoFactorBackupCodes = backupCodes;
+    await admin.save();
+
+    res.json({
+      secret: secret.base32,
+      qrCode: qrCodeUrl,
+      manualEntryKey: secret.base32,
+      backupCodes: backupCodes.map(bc => bc.code)
+    });
+  } catch (error) {
+    console.error('2FA setup error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/admin/2fa/verify-setup
+// @desc    Verify and enable 2FA
+router.post('/2fa/verify-setup', async (req, res) => {
+  try {
+    const { token } = req.body;
+    const admin = await User.findById(req.user._id);
+    
+    if (!admin || !admin.twoFactorSecret) {
+      return res.status(400).json({ message: 'No 2FA setup in progress' });
+    }
+
+    // Verify token
+    const verified = speakeasy.totp.verify({
+      secret: admin.twoFactorSecret,
+      encoding: 'base32',
+      token: token,
+      window: 2
+    });
+
+    if (!verified) {
+      return res.status(400).json({ message: 'Invalid verification code' });
+    }
+
+    // Enable 2FA
+    admin.twoFactorEnabled = true;
+    await admin.save();
+
+    res.json({ message: '2FA enabled successfully' });
+  } catch (error) {
+    console.error('2FA verify setup error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/admin/2fa/disable
+// @desc    Disable 2FA
+router.post('/2fa/disable', async (req, res) => {
+  try {
+    const { password, token } = req.body;
+    const admin = await User.findById(req.user._id);
+    
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    // Verify password
+    const bcrypt = require('bcryptjs');
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid password' });
+    }
+
+    // Verify 2FA token
+    const verified = speakeasy.totp.verify({
+      secret: admin.twoFactorSecret,
+      encoding: 'base32',
+      token: token,
+      window: 2
+    });
+
+    if (!verified) {
+      return res.status(400).json({ message: 'Invalid verification code' });
+    }
+
+    // Disable 2FA
+    admin.twoFactorEnabled = false;
+    admin.twoFactorSecret = null;
+    admin.twoFactorBackupCodes = [];
+    await admin.save();
+
+    res.json({ message: '2FA disabled successfully' });
+  } catch (error) {
+    console.error('2FA disable error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/admin/2fa/status
+// @desc    Get 2FA status
+router.get('/2fa/status', async (req, res) => {
+  try {
+    const admin = await User.findById(req.user._id).select('twoFactorEnabled');
+    
+    res.json({ 
+      enabled: admin?.twoFactorEnabled || false 
+    });
+  } catch (error) {
+    console.error('2FA status error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   PUT /api/admin/profile
+// @desc    Update admin profile (name, profile picture)
+router.put('/profile', async (req, res) => {
+  try {
+    const { fullName, profilePicture } = req.body;
+    
+    const admin = await User.findById(req.user._id);
+    
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    if (fullName) admin.fullName = fullName;
+    if (profilePicture !== undefined) admin.profilePicture = profilePicture;
+
+    await admin.save();
+
+    res.json({ 
+      message: 'Profile updated successfully',
+      user: {
+        id: admin._id,
+        fullName: admin.fullName,
+        email: admin.email,
+        role: admin.role,
+        profilePicture: admin.profilePicture
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin Notification Routes
+// @route   GET /api/admin/notifications
+// @desc    Get admin notifications (new applications, updates, etc.)
+router.get('/notifications', async (req, res) => {
+  try {
+    // Get recent applications (last 24 hours)
+    const recentApplications = await Application.find({
+      submittedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    }).countDocuments();
+
+    // Get pending applications
+    const pendingApplications = await Application.countDocuments({ status: 'pending' });
+
+    // Get recent user registrations (last 24 hours)
+    const recentUsers = await User.find({
+      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    }).countDocuments();
+
+    // Create notification items
+    const notifications = [];
+
+    if (recentApplications > 0) {
+      notifications.push({
+        id: 'new-applications',
+        type: 'application',
+        title: 'New Applications',
+        message: `${recentApplications} new application${recentApplications > 1 ? 's' : ''} submitted in the last 24 hours`,
+        count: recentApplications,
+        timestamp: new Date(),
+        priority: 'high'
+      });
+    }
+
+    if (pendingApplications > 0) {
+      notifications.push({
+        id: 'pending-applications',
+        type: 'application',
+        title: 'Pending Applications',
+        message: `${pendingApplications} application${pendingApplications > 1 ? 's' : ''} awaiting review`,
+        count: pendingApplications,
+        timestamp: new Date(),
+        priority: 'medium'
+      });
+    }
+
+    if (recentUsers > 0) {
+      notifications.push({
+        id: 'new-users',
+        type: 'user',
+        title: 'New User Registrations',
+        message: `${recentUsers} new user${recentUsers > 1 ? 's' : ''} registered in the last 24 hours`,
+        count: recentUsers,
+        timestamp: new Date(),
+        priority: 'low'
+      });
+    }
+
+    res.json(notifications);
+  } catch (error) {
+    console.error('Get admin notifications error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/admin/notifications/count
+// @desc    Get unread notification count for admin
+router.get('/notifications/count', async (req, res) => {
+  try {
+    // Get counts for different notification types
+    const recentApplications = await Application.find({
+      submittedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    }).countDocuments();
+
+    const pendingApplications = await Application.countDocuments({ status: 'pending' });
+
+    const recentUsers = await User.find({
+      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    }).countDocuments();
+
+    // Calculate total notification count
+    let totalCount = 0;
+    if (recentApplications > 0) totalCount++;
+    if (pendingApplications > 0) totalCount++;
+    if (recentUsers > 0) totalCount++;
+
+    res.json({ 
+      count: totalCount,
+      details: {
+        recentApplications,
+        pendingApplications,
+        recentUsers
+      }
+    });
+  } catch (error) {
+    console.error('Get admin notification count error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

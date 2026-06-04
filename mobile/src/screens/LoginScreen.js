@@ -11,18 +11,22 @@ import {
   Animated,
   ImageBackground,
   Image,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SIZES } from '../styles/theme';
 import { authAPI, applicationAPI } from '../services/api';
+import BiometricAuth from '../utils/biometricAuth';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState('Biometric');
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -41,7 +45,142 @@ const LoginScreen = ({ navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
+    
+    // Check biometric availability
+    checkBiometricAvailability();
   }, []);
+
+  const checkBiometricAvailability = async () => {
+    try {
+      const shouldShow = await BiometricAuth.shouldShowBiometricLogin();
+      setBiometricAvailable(shouldShow);
+      
+      if (shouldShow) {
+        const typeName = await BiometricAuth.getBiometricTypeName();
+        setBiometricType(typeName);
+      }
+    } catch (error) {
+      console.error('Error checking biometric availability:', error);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      setLoading(true);
+      
+      // Get credentials from secure storage after biometric auth
+      const result = await BiometricAuth.getBiometricCredentials();
+      
+      if (result.success && result.credentials) {
+        const { email: storedEmail, password: storedPassword } = result.credentials;
+        
+        // Login with stored credentials
+        const response = await authAPI.login({ 
+          email: storedEmail, 
+          password: storedPassword 
+        });
+        
+        const { token, user } = response.data;
+
+        await AsyncStorage.setItem('token', token);
+        await AsyncStorage.setItem('user', JSON.stringify(user));
+
+        // Check if user is not verified
+        if (!user.isVerified) {
+          Toast.show({
+            type: 'warning',
+            text1: 'Account Not Verified',
+            text2: 'Please verify your email to continue',
+            position: 'top',
+            topOffset: 60,
+            visibilityTime: 3000,
+          });
+          
+          setTimeout(() => {
+            navigation.navigate('Verification', { email: user.email });
+          }, 1000);
+          return;
+        }
+
+        Toast.show({
+          type: 'success',
+          text1: 'Welcome Back! 👋',
+          text2: `Logged in as ${user.fullName}`,
+          position: 'top',
+          topOffset: 60,
+          visibilityTime: 2000,
+        });
+
+        // Navigate based on user role and application status
+        await navigateAfterLogin(user);
+      }
+    } catch (error) {
+      console.error('Biometric login error:', error);
+      
+      if (error.message === 'Biometric authentication failed') {
+        Toast.show({
+          type: 'error',
+          text1: 'Authentication Failed',
+          text2: 'Please try again or use password',
+          position: 'top',
+          topOffset: 60,
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Login Failed',
+          text2: error.message || 'Please use password to login',
+          position: 'top',
+          topOffset: 60,
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const navigateAfterLogin = async (user) => {
+    // Check if admin
+    if (user.role === 'admin') {
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'AdminDashboard' }],
+        });
+      }, 800);
+      return;
+    }
+
+    // Check if user has already submitted an application
+    try {
+      const appResponse = await applicationAPI.getMine();
+      if (appResponse.data && appResponse.data.trackingCode) {
+        setTimeout(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ 
+              name: 'Feed',
+              params: { trackingCode: appResponse.data.trackingCode }
+            }],
+          });
+        }, 800);
+      } else {
+        setTimeout(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Guidelines' }],
+          });
+        }, 800);
+      }
+    } catch (appError) {
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Guidelines' }],
+        });
+      }, 800);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -89,55 +228,47 @@ const LoginScreen = ({ navigation }) => {
         visibilityTime: 2000,
       });
 
-      // Check if admin
-      if (user.role === 'admin') {
+      // Offer to enable biometric login if not already enabled
+      const biometricEnabled = await BiometricAuth.isBiometricLoginEnabled();
+      const biometricSupported = await BiometricAuth.isBiometricSupported();
+      const biometricEnrolled = await BiometricAuth.isBiometricEnrolled();
+      
+      if (!biometricEnabled && biometricSupported && biometricEnrolled) {
+        const biometricTypeName = await BiometricAuth.getBiometricTypeName();
+        
         setTimeout(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'AdminDashboard' }],
-          });
-        }, 800);
-        return;
+          Alert.alert(
+            'Enable Biometric Login?',
+            `Use ${biometricTypeName} for quick and secure login next time?`,
+            [
+              {
+                text: 'Not Now',
+                style: 'cancel',
+              },
+              {
+                text: 'Enable',
+                onPress: async () => {
+                  try {
+                    await BiometricAuth.enableBiometricLogin(email, password);
+                    Toast.show({
+                      type: 'success',
+                      text1: 'Biometric Login Enabled',
+                      text2: 'You can now use biometric to login',
+                      position: 'top',
+                      topOffset: 60,
+                    });
+                  } catch (error) {
+                    console.error('Error enabling biometric:', error);
+                  }
+                },
+              },
+            ]
+          );
+        }, 1500);
       }
 
-      // Check if user has already submitted an application
-      try {
-        const appResponse = await applicationAPI.getMine();
-        if (appResponse.data && appResponse.data.trackingCode) {
-          setTimeout(() => {
-            navigation.reset({
-              index: 0,
-              routes: [{ 
-                name: 'Feed',
-                params: { trackingCode: appResponse.data.trackingCode }
-              }],
-            });
-          }, 800);
-        } else {
-          setTimeout(() => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Guidelines' }],
-            });
-          }, 800);
-        }
-      } catch (appError) {
-        if (appError.response?.status === 404) {
-          setTimeout(() => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Guidelines' }],
-            });
-          }, 800);
-        } else {
-          setTimeout(() => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Guidelines' }],
-            });
-          }, 800);
-        }
-      }
+      // Navigate based on user role and application status
+      await navigateAfterLogin(user);
     } catch (error) {
       console.error('Login error:', error);
       
@@ -285,6 +416,25 @@ const LoginScreen = ({ navigation }) => {
                   </>
                 )}
               </TouchableOpacity>
+
+              {/* Biometric Login Button */}
+              {biometricAvailable && (
+                <TouchableOpacity
+                  style={[styles.biometricButton, loading && styles.biometricButtonDisabled]}
+                  onPress={handleBiometricLogin}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons 
+                    name={biometricType === 'Face ID' ? 'scan' : 'finger-print'} 
+                    size={24} 
+                    color={COLORS.primaryLight} 
+                  />
+                  <Text style={styles.biometricButtonText}>
+                    Sign in with {biometricType}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
@@ -472,6 +622,26 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     ...FONTS.bold,
     letterSpacing: 0.5,
+  },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    height: 54,
+    marginTop: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  biometricButtonDisabled: {
+    opacity: 0.6,
+  },
+  biometricButtonText: {
+    fontSize: 15,
+    color: COLORS.primaryLight,
+    ...FONTS.semiBold,
   },
   divider: {
     flexDirection: 'row',

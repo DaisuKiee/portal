@@ -53,6 +53,27 @@ const userSchema = new mongoose.Schema({
     alternativeReason: String,
     completedAt: Date
   },
+  // 2FA fields
+  twoFactorSecret: {
+    type: String,
+    default: null
+  },
+  twoFactorEnabled: {
+    type: Boolean,
+    default: false
+  },
+  twoFactorBackupCodes: [{
+    code: String,
+    used: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  // Profile picture
+  profilePicture: {
+    type: String,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

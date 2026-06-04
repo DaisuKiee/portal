@@ -125,6 +125,12 @@ export default function PostsPage() {
       return;
     }
 
+    // Confirmation dialog
+    const confirmed = await confirmDialog(
+      'Are you sure you want to post this announcement? All students will be notified.'
+    );
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       const postData = {
@@ -171,12 +177,12 @@ export default function PostsPage() {
     <AdminLayout>
       <div>
         <div className="mb-6">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">Posts Management</h2>
-          <p className="text-gray-600">Create and manage announcements for students</p>
+          <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Posts Management</h2>
+          <p className="text-gray-600 dark:text-gray-400">Create and manage announcements for students</p>
         </div>
 
         {/* Enhanced Create Announcement Card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden mb-6">
           <div className="bg-gradient-to-r from-primary via-primary-dark to-primary p-6">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
@@ -311,9 +317,9 @@ export default function PostsPage() {
         </div>
 
         {/* Enhanced Search */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 mb-6">
           <div className="relative">
-            <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -332,62 +338,72 @@ export default function PostsPage() {
             // Enhanced Skeleton Loading
             <>
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-pulse">
+                <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 animate-pulse">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center space-x-3 flex-1">
-                      <div className="w-12 h-12 bg-gray-200 rounded-full flex-shrink-0"></div>
+                      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex-shrink-0"></div>
                       <div className="flex-1">
-                        <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-24"></div>
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-2"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
                       </div>
                     </div>
-                    <div className="h-8 bg-gray-200 rounded w-20"></div>
+                    <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
                   </div>
                   <div className="space-y-2 mb-4">
-                    <div className="h-3 bg-gray-200 rounded w-full"></div>
-                    <div className="h-3 bg-gray-200 rounded w-5/6"></div>
-                    <div className="h-3 bg-gray-200 rounded w-4/6"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/6"></div>
                   </div>
-                  <div className="h-4 bg-gray-200 rounded w-32"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
                 </div>
               ))}
             </>
           ) : filteredPosts.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FontAwesomeIcon icon={faBullhorn} className="text-4xl text-gray-400" />
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-12 text-center">
+              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FontAwesomeIcon icon={faBullhorn} className="text-4xl text-gray-400 dark:text-gray-500" />
               </div>
-              <p className="text-gray-500 text-lg font-medium">No posts found</p>
-              <p className="text-gray-400 text-sm mt-1">Create your first announcement to get started!</p>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">No posts found</p>
+              <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Create your first announcement to get started!</p>
             </div>
           ) : (
             filteredPosts.map((post) => (
-              <div key={post.id} className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow p-6">
+              <div key={post.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center shadow-lg">
-                      <span className="text-white font-bold text-lg">
-                        {post.author?.name?.charAt(0) || 'A'}
-                      </span>
-                    </div>
+                    {post.author?.profilePicture ? (
+                      <img 
+                        src={post.author.profilePicture} 
+                        alt={post.author.name} 
+                        className="w-12 h-12 rounded-full object-cover shadow-lg border-2 border-primary/20"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-white font-bold text-lg">
+                          {post.author?.name?.charAt(0) || 'A'}
+                        </span>
+                      </div>
+                    )}
                     <div>
-                      <p className="font-semibold text-gray-800">{post.author?.name}</p>
-                      <p className="text-sm text-gray-500">{post.timestamp}</p>
+                      <p className="font-semibold text-gray-800 dark:text-white">{post.author?.name}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {formatTimeAgo(post.createdAt)}
+                      </p>
                     </div>
                     {post.isPinned && (
-                      <span className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-medium">
+                      <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs px-3 py-1 rounded-full font-medium">
                         📌 Pinned
                       </span>
                     )}
                     {post.author?.role && (
-                      <span className="bg-purple-100 text-purple-800 text-xs px-3 py-1 rounded-full font-medium">
+                      <span className="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-xs px-3 py-1 rounded-full font-medium">
                         {post.author.role}
                       </span>
                     )}
                   </div>
                   <button
                     onClick={() => handleDeletePost(post.id)}
-                    className="text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg transition font-medium text-sm"
+                    className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg transition font-medium text-sm"
                   >
                     Delete
                   </button>
@@ -448,7 +464,7 @@ export default function PostsPage() {
         </div>
 
         {/* Footer Stats */}
-        <div className="mt-6 flex justify-between items-center text-sm text-gray-600 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div className="mt-6 flex justify-between items-center text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
           <span>Showing {filteredPosts.length} of {posts.length} posts</span>
           {search && (
             <button

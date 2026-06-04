@@ -42,7 +42,7 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  login: (email, password) => api.post('/auth/login', { email, password }),
+  login: (email, password, twoFactorCode = null) => api.post('/auth/login', { email, password, twoFactorCode }),
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token');
@@ -66,6 +66,15 @@ export const adminAPI = {
   deleteCourse: (id) => api.delete(`/admin/courses/${id}`),
   getTrackingStages: () => api.get('/admin/tracking/stages'),
   updateTrackingStages: (data) => api.put('/admin/tracking/stages', data),
+  getNotifications: () => api.get('/admin/notifications'),
+  getNotificationCount: () => api.get('/admin/notifications/count'),
+  getPasswordHash: (twoFactorCode) => api.post('/admin/profile/hash', { twoFactorCode }),
+  updateProfile: (data) => api.put('/admin/profile', data),
+  // 2FA methods
+  setup2FA: () => api.post('/admin/2fa/setup'),
+  verify2FASetup: (token) => api.post('/admin/2fa/verify-setup', { token }),
+  disable2FA: (password, token) => api.post('/admin/2fa/disable', { password, token }),
+  get2FAStatus: () => api.get('/admin/2fa/status'),
 };
 
 // Feed API

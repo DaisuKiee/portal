@@ -10,10 +10,15 @@ import {
   Modal,
   Animated,
   Dimensions,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
+import * as Clipboard from 'expo-clipboard';
 import { COLORS, FONTS } from '../styles/theme';
 import { profileAPI, feedAPI } from '../services/api';
 
@@ -29,6 +34,17 @@ const ProfileScreen = ({ navigation }) => {
   const [applicationStatus, setApplicationStatus] = useState(null);
   const [myPosts, setMyPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  
+  // Edit Profile Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFullName, setEditFullName] = useState('');
+  const [editAvatar, setEditAvatar] = useState(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  
+  // Password Hash
+  const [passwordHash, setPasswordHash] = useState('');
+  const [fetchingHash, setFetchingHash] = useState(false);
+  const [showHashModal, setShowHashModal] = useState(false);
   
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -134,13 +150,172 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleEditProfile = () => {
-    Toast.show({
-      type: 'info',
-      text1: 'Edit Profile',
-      text2: 'Profile editing coming soon',
-      position: 'top',
-      topOffset: 60,
-    });
+    setEditFullName(userData?.fullName || '');
+    setEditAvatar(userData?.profilePicture || null);
+    setShowEditModal(true);
+  };
+
+  const handleGetHash = async () => {
+    try {
+      setFetchingHash(true);
+      const response = await profileAPI.getPasswordHash();
+      setPasswordHash(response.data.passwordHash);
+      setShowHashModal(true);
+    } catch (error) {
+      console.error('Get hash error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.message || 'Failed to fetch password hash',
+        position: 'top',
+        topOffset: 60,
+      });
+    } finally {
+      setFetchingHash(false);
+    }
+  };
+
+  const handleCopyHash = async () => {
+    try {
+      await Clipboard.setStringAsync(passwordHash);
+      Toast.show({
+        type: 'success',
+        text1: 'Copied',
+        text2: 'Password hash copied to clipboard',
+        position: 'top',
+        topOffset: 60,
+      });
+    } catch (error) {
+      console.error('Copy error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to copy to clipboard',
+        position: 'top',
+        topOffset: 60,
+      });
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const { ImagePicker } = await import('expo-image-picker');
+      
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Toast.show({
+          type: 'error',
+          text1: 'Permission Denied',
+          text2: 'Camera roll permission is required',
+          position: 'top',
+          topOffset: 60,
+        });
+        return;
+      }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        // Check file size (max 2MB)
+        if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) {
+          Toast.show({
+            type: 'error',
+            text1: 'File Too Large',
+            text2: 'Please select an image under 2MB',
+            position: 'top',
+            topOffset: 60,
+          });
+          return;
+        }
+
+        setEditAvatar(asset.uri);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to pick image',
+        position: 'top',
+        topOffset: 60,
+      });
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    setEditAvatar(null);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      // Validate inputs
+      if (!editFullName.trim()) {
+        Toast.show({
+          type: 'error',
+          text1: 'Validation Error',
+          text2: 'Full name is required',
+          position: 'top',
+          topOffset: 60,
+        });
+        return;
+      }
+
+      setSavingProfile(true);
+
+      // Convert image to base64 if it's a new image
+      let profilePictureData = editAvatar;
+      if (editAvatar && editAvatar.startsWith('file://')) {
+        const { FileSystem } = await import('expo-file-system');
+        const base64 = await FileSystem.readAsStringAsync(editAvatar, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        profilePictureData = `data:image/jpeg;base64,${base64}`;
+      }
+
+      // Update profile
+      const updateData = {
+        fullName: editFullName.trim(),
+        profilePicture: profilePictureData,
+      };
+
+      await profileAPI.update(updateData);
+
+      // Refresh user data
+      const response = await profileAPI.get();
+      setUserData(response.data);
+      await AsyncStorage.setItem('user', JSON.stringify(response.data));
+
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Profile updated successfully',
+        position: 'top',
+        topOffset: 60,
+      });
+
+      setShowEditModal(false);
+    } catch (error) {
+      console.error('Save profile error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.message || 'Failed to update profile',
+        position: 'top',
+        topOffset: 60,
+      });
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   if (loading) {
@@ -212,11 +387,18 @@ const ProfileScreen = ({ navigation }) => {
             </View>
             
             <View style={styles.avatarContainer}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {userData?.fullName?.charAt(0).toUpperCase() || 'U'}
-                </Text>
-              </View>
+              {userData?.profilePicture ? (
+                <Image
+                  source={{ uri: userData.profilePicture }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {userData?.fullName?.charAt(0).toUpperCase() || 'U'}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -263,16 +445,18 @@ const ProfileScreen = ({ navigation }) => {
               <Text style={styles.editButtonText}>Edit profile</Text>
             </TouchableOpacity>
             
-            {trackingCode && (
-              <TouchableOpacity 
-                style={styles.trackButton}
-                onPress={() => navigation.navigate('Tracking', { trackingCode })}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="search" size={16} color={COLORS.white} />
-                <Text style={styles.trackButtonText}>Track</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity 
+              style={styles.hashButton}
+              onPress={handleGetHash}
+              disabled={fetchingHash}
+              activeOpacity={0.7}
+            >
+              {fetchingHash ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text style={styles.hashButtonText}>Get Hash</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -453,6 +637,121 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalContainer}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowEditModal(false)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+              style={styles.editModal}
+            >
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <TouchableOpacity
+                  onPress={() => setShowEditModal(false)}
+                  activeOpacity={0.6}
+                >
+                  <Text style={styles.modalCancel}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.modalTitle}>Edit Profile</Text>
+                
+                <TouchableOpacity
+                  onPress={handleSaveProfile}
+                  disabled={savingProfile}
+                  activeOpacity={0.6}
+                >
+                  {savingProfile ? (
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                  ) : (
+                    <Text style={styles.modalSave}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.editModalContent} showsVerticalScrollIndicator={false}>
+                {/* Avatar Upload */}
+                <View style={styles.avatarUploadSection}>
+                  <Text style={styles.inputLabel}>Profile Picture</Text>
+                  <View style={styles.avatarUploadContainer}>
+                    {editAvatar ? (
+                      <Image source={{ uri: editAvatar }} style={styles.avatarPreview} />
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        <Text style={styles.avatarPlaceholderText}>
+                          {editFullName?.charAt(0).toUpperCase() || 'U'}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.avatarActions}>
+                      <TouchableOpacity
+                        style={styles.avatarButton}
+                        onPress={handlePickImage}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="camera" size={20} color={COLORS.white} />
+                        <Text style={styles.avatarButtonText}>
+                          {editAvatar ? 'Change' : 'Upload'}
+                        </Text>
+                      </TouchableOpacity>
+                      {editAvatar && (
+                        <TouchableOpacity
+                          style={[styles.avatarButton, styles.avatarButtonRemove]}
+                          onPress={handleRemoveAvatar}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="trash" size={20} color={COLORS.error} />
+                          <Text style={[styles.avatarButtonText, { color: COLORS.error }]}>
+                            Remove
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                  <Text style={styles.inputHint}>Max 2MB • JPG, PNG, GIF</Text>
+                </View>
+
+                {/* Full Name */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Full Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={editFullName}
+                    onChangeText={setEditFullName}
+                    placeholder="Enter your full name"
+                    placeholderTextColor={COLORS.mediumGray}
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                {/* Email (Read-only) */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <View style={styles.inputReadOnly}>
+                    <Text style={styles.inputReadOnlyText}>{userData?.email}</Text>
+                    <Ionicons name="lock-closed" size={16} color={COLORS.mediumGray} />
+                  </View>
+                  <Text style={styles.inputHint}>Email cannot be changed</Text>
+                </View>
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Custom Drawer - Threads Settings Style */}
       {isDrawerOpen && (
         <TouchableOpacity
@@ -584,6 +883,65 @@ const ProfileScreen = ({ navigation }) => {
           </Animated.View>
         </TouchableOpacity>
       )}
+      
+      {/* Password Hash Modal */}
+      <Modal
+        visible={showHashModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowHashModal(false)}
+      >
+        <View style={styles.hashModalOverlay}>
+          <View style={styles.hashModalContainer}>
+            <View style={styles.hashModalHeader}>
+              <Text style={styles.hashModalTitle}>Password Hash</Text>
+              <TouchableOpacity
+                onPress={() => setShowHashModal(false)}
+                style={styles.hashModalClose}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={24} color={COLORS.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.hashModalContent}>
+              <View style={styles.hashInfoBox}>
+                <Ionicons name="information-circle" size={24} color={COLORS.primary} />
+                <Text style={styles.hashInfoText}>
+                  This is your bcrypt password hash stored in the database. Keep it secure!
+                </Text>
+              </View>
+
+              <View style={styles.hashBox}>
+                <ScrollView 
+                  style={styles.hashScrollView}
+                  showsVerticalScrollIndicator={true}
+                >
+                  <Text style={styles.hashText} selectable={true}>
+                    {passwordHash}
+                  </Text>
+                </ScrollView>
+              </View>
+
+              <TouchableOpacity
+                style={styles.copyHashButton}
+                onPress={handleCopyHash}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="copy-outline" size={20} color={COLORS.white} />
+                <Text style={styles.copyHashButtonText}>Copy to Clipboard</Text>
+              </TouchableOpacity>
+
+              <View style={styles.hashWarningBox}>
+                <Ionicons name="warning" size={20} color={COLORS.warning} />
+                <Text style={styles.hashWarningText}>
+                  Never share your password hash with anyone. This is sensitive security information.
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -753,6 +1111,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  avatarImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
   avatarText: {
     fontSize: 24,
     color: COLORS.primary,
@@ -784,23 +1147,39 @@ const styles = StyleSheet.create({
     borderColor: COLORS.lightGray,
     alignItems: 'center',
   },
-  editButtonText: {
-    fontSize: 15,
-    color: COLORS.secondary,
-    ...FONTS.semiBold,
-  },
-  trackButton: {
-    flexDirection: 'row',
+  editButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 20,
+  },
+  editButtonFull: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    alignItems: 'center',
+  },
+  hashButton: {
+    flex: 1,
     paddingVertical: 10,
     borderRadius: 10,
     backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 42,
   },
-  trackButtonText: {
+  hashButtonText: {
     fontSize: 15,
     color: COLORS.white,
+    ...FONTS.semiBold,
+  },
+  editButtonText: {
+    fontSize: 15,
+    color: COLORS.secondary,
     ...FONTS.semiBold,
   },
   // Tabs
@@ -1146,6 +1525,295 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.primary,
     ...FONTS.regular,
+  },
+  // Edit Profile Modal
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  editModal: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  modalCancel: {
+    fontSize: 16,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
+  },
+  modalTitle: {
+    fontSize: 18,
+    color: COLORS.secondary,
+    ...FONTS.bold,
+  },
+  modalSave: {
+    fontSize: 16,
+    color: COLORS.primary,
+    ...FONTS.semiBold,
+  },
+  editModalContent: {
+    padding: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: COLORS.secondary,
+    ...FONTS.semiBold,
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: COLORS.secondary,
+    ...FONTS.regular,
+  },
+  inputReadOnly: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.ultraLightGray,
+  },
+  inputReadOnlyText: {
+    fontSize: 16,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
+    marginTop: 4,
+  },
+  passwordInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 10,
+  },
+  passwordField: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: COLORS.secondary,
+    ...FONTS.regular,
+  },
+  eyeButton: {
+    padding: 12,
+  },
+  sectionDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.lightGray,
+  },
+  dividerText: {
+    fontSize: 13,
+    color: COLORS.mediumGray,
+    ...FONTS.medium,
+    marginHorizontal: 12,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: COLORS.primary + '10',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.secondary,
+    ...FONTS.regular,
+    lineHeight: 18,
+  },
+  // Avatar Upload
+  avatarUploadSection: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  avatarUploadContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  avatarPreview: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 16,
+  },
+  avatarPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarPlaceholderText: {
+    fontSize: 48,
+    color: COLORS.primary,
+    ...FONTS.bold,
+  },
+  avatarActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  avatarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+  },
+  avatarButtonRemove: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  avatarButtonText: {
+    fontSize: 14,
+    color: COLORS.white,
+    ...FONTS.semiBold,
+  },
+  // Password Hash Modal
+  hashModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  hashModalContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  hashModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  hashModalTitle: {
+    fontSize: 20,
+    color: COLORS.secondary,
+    ...FONTS.bold,
+  },
+  hashModalClose: {
+    padding: 4,
+  },
+  hashModalContent: {
+    padding: 20,
+  },
+  hashInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: COLORS.primary + '10',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  hashInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.secondary,
+    ...FONTS.regular,
+    lineHeight: 20,
+  },
+  hashBox: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+  },
+  hashScrollView: {
+    maxHeight: 180,
+  },
+  hashText: {
+    fontSize: 12,
+    color: COLORS.secondary,
+    fontFamily: 'monospace',
+    lineHeight: 18,
+  },
+  copyHashButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  copyHashButtonText: {
+    fontSize: 16,
+    color: COLORS.white,
+    ...FONTS.semiBold,
+  },
+  hashWarningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: COLORS.warning + '10',
+    padding: 16,
+    borderRadius: 12,
+  },
+  hashWarningText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.secondary,
+    ...FONTS.regular,
+    lineHeight: 18,
   },
 });
 

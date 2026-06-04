@@ -46,6 +46,21 @@ export default function ApplicationDetailsPage() {
   };
 
   const handleUpdateStage = async (stageName) => {
+    // Confirmation dialog
+    const stageNames = {
+      application: 'Application Review',
+      screening: 'Screening',
+      exam: 'Entrance Exam',
+      interview: 'Interview',
+      enrollment: 'Enrollment Selection',
+      idIssuance: 'ID & Email Issuance'
+    };
+    
+    const confirmed = await confirmDialog(
+      `Are you sure you want to update the "${stageNames[stageName] || stageName}" stage?`
+    );
+    if (!confirmed) return;
+
     try {
       // Check if trying to complete this stage when previous stage isn't completed
       const stageOrder = ['application', 'screening', 'exam', 'interview', 'enrollment', 'idIssuance'];
@@ -598,11 +613,11 @@ export default function ApplicationDetailsPage() {
           Back to Applications
         </button>
 
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6 border border-gray-200 dark:border-gray-700">
           {/* Header with Photo */}
-          <div className="flex gap-6 mb-6 pb-6 border-b">
+          <div className="flex gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
             {/* Profile Photo - Show uploaded 2x2 if available */}
-            <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center flex-shrink-0 border-2 border-blue-300 overflow-hidden">
+            <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 rounded-lg flex items-center justify-center flex-shrink-0 border-2 border-blue-300 dark:border-blue-700 overflow-hidden">
               {application.documents?.idPhoto?.base64 ? (
                 <img 
                   src={`data:image/jpeg;base64,${application.documents.idPhoto.base64}`}
@@ -615,10 +630,10 @@ export default function ApplicationDetailsPage() {
                 />
               ) : null}
               <div className={`fallback-initials text-center w-full h-full flex flex-col items-center justify-center ${application.documents?.idPhoto?.base64 ? 'hidden' : ''}`}>
-                <div className="text-4xl font-bold text-blue-600">
+                <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">
                   {application.personalInfo?.firstName?.charAt(0)}{application.personalInfo?.lastName?.charAt(0)}
                 </div>
-                <div className="text-xs text-blue-500 mt-1">
+                <div className="text-xs text-blue-500 dark:text-blue-400 mt-1">
                   {application.documents?.idPhoto ? 'Photo Uploaded' : 'No Photo'}
                 </div>
               </div>
@@ -626,10 +641,10 @@ export default function ApplicationDetailsPage() {
 
             {/* Header Info */}
             <div className="flex-1">
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                 {application.personalInfo?.firstName} {application.personalInfo?.middleName} {application.personalInfo?.lastName} {application.personalInfo?.suffix}
               </h2>
-              <div className="space-y-1 text-sm text-gray-600">
+              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                 <p><span className="font-medium">Tracking Code:</span> {application.trackingCode}</p>
                 <p><span className="font-medium">Submitted:</span> {application.submittedAt ? new Date(application.submittedAt).toLocaleString('en-US', { 
                   month: '2-digit', 
@@ -884,17 +899,17 @@ export default function ApplicationDetailsPage() {
         </div>
 
         {/* Admission Process Stages - Enhanced Timeline */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Admission Process Stages</h3>
-              <p className="text-sm text-gray-600 mt-1">Track the applicant's progress through each stage</p>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Admission Process Stages</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Track the applicant's progress through each stage</p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {stages.filter(s => (application.stages?.[s.key] || 'pending') === 'completed').length}/{stages.length}
               </div>
-              <div className="text-xs text-gray-500">Stages Completed</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Stages Completed</div>
             </div>
           </div>
 
@@ -1058,14 +1073,14 @@ export default function ApplicationDetailsPage() {
                     {/* Edit Modal */}
                     {editingStage === stage.key && (
                       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
                           <div className="flex items-center gap-3 mb-6">
-                            <div className={`w-12 h-12 ${stage.bgColor} rounded-xl flex items-center justify-center`}>
-                              <FontAwesomeIcon icon={stage.icon} className={`${stage.color} text-xl`} />
+                            <div className={`w-12 h-12 ${stage.bgColor} dark:bg-opacity-20 rounded-xl flex items-center justify-center`}>
+                              <FontAwesomeIcon icon={stage.icon} className={`${stage.color} dark:text-opacity-90 text-xl`} />
                             </div>
                             <div>
-                              <h4 className="text-xl font-bold text-gray-900">Edit {stage.name}</h4>
-                              <p className="text-sm text-gray-600">Update stage status and collect relevant data</p>
+                              <h4 className="text-xl font-bold text-gray-900 dark:text-white">Edit {stage.name}</h4>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">Update stage status and collect relevant data</p>
                             </div>
                           </div>
                           

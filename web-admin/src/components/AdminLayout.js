@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { authAPI } from '@/services/api';
 import { requireAuth } from '@/utils/auth';
+import NotificationDropdown from './NotificationDropdown';
 
 export default function AdminLayout({ children }) {
   const router = useRouter();
@@ -11,6 +12,14 @@ export default function AdminLayout({ children }) {
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Function to load user data
+  const loadUserData = () => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      setUser(JSON.parse(userStr));
+    }
+  };
 
   useEffect(() => {
     // Check if device is mobile
@@ -26,8 +35,28 @@ export default function AdminLayout({ children }) {
 
   useEffect(() => {
     if (!requireAuth()) return;
-    const userStr = localStorage.getItem('user');
-    if (userStr) setUser(JSON.parse(userStr));
+    loadUserData();
+    
+    // Listen for storage changes (when user data is updated)
+    const handleStorageChange = (e) => {
+      if (e.key === 'user' || e.type === 'storage') {
+        loadUserData();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom event when user updates profile
+    const handleUserUpdate = () => {
+      loadUserData();
+    };
+    
+    window.addEventListener('userUpdated', handleUserUpdate);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('userUpdated', handleUserUpdate);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -151,6 +180,15 @@ export default function AdminLayout({ children }) {
       )
     },
     { 
+      name: 'Profile', 
+      path: '/profile', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      )
+    },
+    { 
       name: 'Settings', 
       path: '/settings', 
       icon: (
@@ -163,50 +201,64 @@ export default function AdminLayout({ children }) {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       {/* Modern Header */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
         <div className="px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition"
+              className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
             >
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white shadow-lg">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white dark:bg-gray-700 shadow-lg">
                 <img src="/ctu.png" alt="CTU Logo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">
                   CTU Admin Portal
                 </h1>
-                <p className="text-xs text-gray-500">Admission Management</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Admission Management</p>
               </div>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
             {/* Notifications */}
-            <button className="relative p-2 hover:bg-gray-100 rounded-lg transition">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
-            </button>
+            <NotificationDropdown />
 
             {/* User Menu */}
-            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold text-gray-800">{user?.fullName || 'Admin'}</p>
-                <p className="text-xs text-gray-500">Administrator</p>
-              </div>
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-light to-primary rounded-full flex items-center justify-center text-white font-bold shadow-lg">
-                {user?.fullName?.charAt(0) || 'A'}
-              </div>
+            <div className="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-gray-700">
+              {/* Clickable User Info */}
+              <button
+                onClick={() => router.push('/profile')}
+                className="flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-2 transition-colors group"
+                title="View Profile"
+              >
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-semibold text-gray-800 dark:text-white group-hover:text-primary transition-colors">
+                    {user?.fullName || 'Admin'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Administrator</p>
+                </div>
+                {user?.profilePicture ? (
+                  <img 
+                    src={user.profilePicture} 
+                    alt="Profile" 
+                    className="w-10 h-10 rounded-full object-cover shadow-lg group-hover:scale-105 transition-transform border-2 border-primary/20"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-gradient-to-br from-primary-light to-primary rounded-full flex items-center justify-center text-white font-bold shadow-lg group-hover:scale-105 transition-transform">
+                    {user?.fullName?.charAt(0) || 'A'}
+                  </div>
+                )}
+              </button>
+              
+              {/* Logout Button */}
               <button
                 onClick={handleLogout}
                 className="p-2 hover:bg-error/10 text-error rounded-lg transition group"
@@ -223,7 +275,7 @@ export default function AdminLayout({ children }) {
 
       <div className="flex">
         {/* Modern Sidebar - Fixed Position */}
-        <aside className={`${sidebarOpen ? 'w-64' : 'w-0 lg:w-20'} bg-white shadow-lg transition-all duration-300 fixed left-0 top-[73px] bottom-0 border-r border-gray-200 overflow-y-auto z-40`}>
+        <aside className={`${sidebarOpen ? 'w-64' : 'w-0 lg:w-20'} bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 fixed left-0 top-[73px] bottom-0 border-r border-gray-200 dark:border-gray-700 overflow-y-auto z-40`}>
           <nav className="p-4 space-y-2">
             {navItems.map((item) => {
               const isActive = pathname === item.path;
@@ -234,7 +286,7 @@ export default function AdminLayout({ children }) {
                   className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all duration-200 group ${
                     isActive
                       ? 'bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg shadow-primary/30'
-                      : 'text-gray-700 hover:bg-gray-100 hover:translate-x-1'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:translate-x-1'
                   }`}
                 >
                   <span className={`${isActive ? 'text-white' : 'text-primary group-hover:scale-110 transition-transform'}`}>

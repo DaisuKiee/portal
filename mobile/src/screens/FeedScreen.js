@@ -267,11 +267,18 @@ const FeedScreen = ({ navigation, route }) => {
         {/* Post Header - Threads Style */}
         <View style={styles.postHeader}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {item.author.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
+            {item.author.avatar ? (
+              <Image 
+                source={{ uri: item.author.avatar }} 
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {item.author.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
           </View>
           
           <View style={styles.postMain}>
@@ -899,6 +906,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: COLORS.primary + '20',
   },
   avatarText: {
     fontSize: 16,

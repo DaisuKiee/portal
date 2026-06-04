@@ -358,10 +358,31 @@ const sendResetPasswordEmail = async (email, fullName, resetCode) => {
   }
 };
 
+// Generic send email function
+const sendEmail = async (options) => {
+  const mailOptions = {
+    from: options.from || process.env.FROM_EMAIL,
+    to: options.to,
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+    attachments: options.attachments || []
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('Email sent to:', options.to);
+  } catch (error) {
+    console.error('Error sending email:', error);
+    throw error;
+  }
+};
+
 module.exports = { 
   sendVerificationEmail, 
   sendWelcomeEmail, 
   sendApplicationSubmittedEmail,
   sendResetPasswordEmail,
-  generateVerificationCode 
+  generateVerificationCode,
+  sendEmail
 };

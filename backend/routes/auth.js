@@ -3,8 +3,12 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Session = require('../models/Session');
+const LoginHistory = require('../models/LoginHistory');
 const { auth } = require('../middleware/auth');
 const { sendVerificationEmail, sendWelcomeEmail, sendResetPasswordEmail, generateVerificationCode } = require('../config/email');
+const speakeasy = require('speakeasy');
+const { getDeviceInfo, getLocationInfo, getClientIp } = require('../utils/deviceDetection');
 
 // @route   POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -150,10 +154,33 @@ router.post('/resend-code', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     console.log('Login attempt:', { email: req.body.email });
-    const { email, password } = req.body;
+    const { email, password, twoFactorCode, deviceInfo: clientDeviceInfo } = req.body;
+
+    // Get device and location info
+    const userAgent = req.headers['user-agent'] || '';
+    const appVersion = clientDeviceInfo?.appVersion || '';
+    const deviceInfo = getDeviceInfo(userAgent, appVersion);
+    const clientIp = getClientIp(req);
+    const location = getLocationInfo(clientIp);
 
     if (!email || !password) {
       console.log('Login failed: Missing credentials');
+      
+      // Log failed attempt
+      if (email) {
+        const user = await User.findOne({ email: email.toLowerCase() });
+        if (user) {
+          await LoginHistory.create({
+            userId: user._id,
+            action: 'failed_login',
+            success: false,
+            deviceInfo,
+            location,
+            failureReason: 'Missing credentials'
+          });
+        }
+      }
+      
       return res.status(400).json({ message: 'Please provide email and password' });
     }
 
@@ -163,15 +190,97 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    console.log('User found:', { email: user.email, isVerified: user.isVerified });
+    console.log('User found:', { email: user.email, isVerified: user.isVerified, twoFactorEnabled: user.twoFactorEnabled });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       console.log('Login failed: Password mismatch');
+      
+      // Log failed attempt
+      await LoginHistory.create({
+        userId: user._id,
+        action: 'failed_login',
+        success: false,
+        deviceInfo,
+        location,
+        failureReason: 'Invalid password'
+      });
+      
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Check if 2FA is enabled for admin users
+    if (user.role === 'admin' && user.twoFactorEnabled) {
+      if (!twoFactorCode) {
+        console.log('Login requires 2FA');
+        return res.status(200).json({ 
+          requiresTwoFactor: true,
+          message: 'Please enter your 6-digit authentication code'
+        });
+      }
+
+      // Verify 2FA code
+      const verified = speakeasy.totp.verify({
+        secret: user.twoFactorSecret,
+        encoding: 'base32',
+        token: twoFactorCode,
+        window: 2
+      });
+
+      if (!verified) {
+        // Check backup codes
+        const backupCode = user.twoFactorBackupCodes.find(
+          bc => bc.code === twoFactorCode.toUpperCase() && !bc.used
+        );
+
+        if (!backupCode) {
+          console.log('Login failed: Invalid 2FA code');
+          
+          // Log failed 2FA attempt
+          await LoginHistory.create({
+            userId: user._id,
+            action: '2fa_failed',
+            success: false,
+            deviceInfo,
+            location,
+            failureReason: 'Invalid 2FA code'
+          });
+          
+          return res.status(400).json({ message: 'Invalid authentication code' });
+        }
+
+        // Mark backup code as used
+        backupCode.used = true;
+        await user.save();
+        console.log('Login successful with backup code');
+      } else {
+        console.log('Login successful with 2FA code');
+      }
+    }
+
+    // Generate token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+    // Create session
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+    await Session.create({
+      userId: user._id,
+      token,
+      deviceInfo,
+      location,
+      expiresAt
+    });
+
+    // Log successful login
+    await LoginHistory.create({
+      userId: user._id,
+      action: 'login',
+      success: true,
+      deviceInfo,
+      location
+    });
 
     console.log('Login successful:', { email: user.email, isVerified: user.isVerified });
     res.json({
@@ -181,7 +290,8 @@ router.post('/login', async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         role: user.role,
-        isVerified: user.isVerified
+        isVerified: user.isVerified,
+        twoFactorEnabled: user.twoFactorEnabled
       }
     });
   } catch (error) {
@@ -203,6 +313,42 @@ router.get('/me', auth, async (req, res) => {
       }
     });
   } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/auth/logout
+router.post('/logout', auth, async (req, res) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (token) {
+      // Find and terminate the session
+      const session = await Session.findOne({ token, userId: req.user._id });
+      if (session) {
+        session.isActive = false;
+        await session.save();
+      }
+
+      // Log logout
+      const userAgent = req.headers['user-agent'] || '';
+      const appVersion = req.body.deviceInfo?.appVersion || '';
+      const deviceInfo = getDeviceInfo(userAgent, appVersion);
+      const clientIp = getClientIp(req);
+      const location = getLocationInfo(clientIp);
+
+      await LoginHistory.create({
+        userId: req.user._id,
+        action: 'logout',
+        success: true,
+        deviceInfo,
+        location
+      });
+    }
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

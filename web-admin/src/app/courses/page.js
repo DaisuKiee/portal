@@ -47,12 +47,27 @@ export default function CoursesPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Confirmation dialog
+    const action = editingCourse ? 'update' : 'create';
+    const courseName = formData.name || 'this course';
+    const confirmed = await confirmDialog(
+      `Are you sure you want to ${action} "${courseName}"?`
+    );
+    if (!confirmed) return;
+    
     try {
+      // Prepare data - convert empty strings to null for number fields
+      const dataToSend = {
+        ...formData,
+        studentLimit: formData.studentLimit === '' ? null : Number(formData.studentLimit),
+        minimumGWA: formData.minimumGWA === '' ? null : Number(formData.minimumGWA)
+      };
+
       if (editingCourse) {
-        await adminAPI.updateCourse(editingCourse._id, formData);
+        await adminAPI.updateCourse(editingCourse._id, dataToSend);
         showToast.success('Course updated successfully');
       } else {
-        await adminAPI.createCourse(formData);
+        await adminAPI.createCourse(dataToSend);
         showToast.success('Course created successfully');
       }
       setShowModal(false);
@@ -60,7 +75,8 @@ export default function CoursesPage() {
       setFormData({ name: '', code: '', description: '', studentLimit: '', minimumGWA: '' });
       loadCourses();
     } catch (error) {
-      showToast.error('Failed to save course');
+      console.error('Save course error:', error);
+      showToast.error(error.response?.data?.message || 'Failed to save course');
     }
   };
 
@@ -103,8 +119,8 @@ export default function CoursesPage() {
       <div>
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h2 className="text-3xl font-bold text-gray-800">Courses Management</h2>
-            <p className="text-gray-500 mt-1">Manage course offerings and programs</p>
+            <h2 className="text-3xl font-bold text-gray-800 dark:text-white">Courses Management</h2>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">Manage course offerings and programs</p>
           </div>
           <button
             onClick={() => {
@@ -127,27 +143,27 @@ export default function CoursesPage() {
               {[...Array(6)].map((_, index) => (
                 <div 
                   key={index}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-pulse"
+                  className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-pulse"
                 >
-                  <div className="bg-gray-100 p-6 border-b border-gray-200">
+                  <div className="bg-gray-100 dark:bg-gray-700 p-6 border-b border-gray-200 dark:border-gray-600">
                     <div className="flex items-start justify-between mb-3">
-                      <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
-                      <div className="h-6 w-16 bg-gray-200 rounded-full"></div>
+                      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-600 rounded-xl"></div>
+                      <div className="h-6 w-16 bg-gray-200 dark:bg-gray-600 rounded-full"></div>
                     </div>
-                    <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
-                    <div className="h-5 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-5 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+                    <div className="h-5 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
                   </div>
                   
                   <div className="p-6">
                     <div className="space-y-2 mb-4">
-                      <div className="h-4 bg-gray-200 rounded w-full"></div>
-                      <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-                      <div className="h-4 bg-gray-200 rounded w-4/6"></div>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-4/6"></div>
                     </div>
                     
                     <div className="flex gap-2">
-                      <div className="flex-1 h-10 bg-gray-200 rounded-lg"></div>
-                      <div className="flex-1 h-10 bg-gray-200 rounded-lg"></div>
+                      <div className="flex-1 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                      <div className="flex-1 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
                     </div>
                   </div>
                 </div>
@@ -155,11 +171,11 @@ export default function CoursesPage() {
             </>
           ) : courses.length === 0 ? (
             <div className="col-span-3 text-center py-16">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FontAwesomeIcon icon={faGraduationCap} className="text-4xl text-gray-400" />
+              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FontAwesomeIcon icon={faGraduationCap} className="text-4xl text-gray-400 dark:text-gray-500" />
               </div>
-              <p className="text-gray-500 text-lg">No courses found</p>
-              <p className="text-gray-400 text-sm mt-1">Add your first course to get started!</p>
+              <p className="text-gray-500 dark:text-gray-400 text-lg">No courses found</p>
+              <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Add your first course to get started!</p>
             </div>
           ) : (
             courses.map((course, index) => {
@@ -167,22 +183,22 @@ export default function CoursesPage() {
               return (
                 <div 
                   key={course._id} 
-                  className={`bg-white rounded-2xl shadow-sm border ${colorScheme.border} hover:shadow-lg transition-all duration-200 overflow-hidden group`}
+                  className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${colorScheme.border} dark:border-gray-700 hover:shadow-lg transition-all duration-200 overflow-hidden group`}
                 >
-                  <div className={`${colorScheme.bg} p-6 border-b ${colorScheme.border}`}>
+                  <div className={`${colorScheme.bg} dark:bg-gray-700 p-6 border-b ${colorScheme.border} dark:border-gray-600`}>
                     <div className="flex items-start justify-between mb-3">
-                      <div className={`w-12 h-12 ${colorScheme.bg} rounded-xl flex items-center justify-center border ${colorScheme.border} shadow-sm`}>
-                        <FontAwesomeIcon icon={faBook} className={`${colorScheme.text} text-xl`} />
+                      <div className={`w-12 h-12 ${colorScheme.bg} dark:bg-gray-600 rounded-xl flex items-center justify-center border ${colorScheme.border} dark:border-gray-500 shadow-sm`}>
+                        <FontAwesomeIcon icon={faBook} className={`${colorScheme.text} dark:text-gray-300 text-xl`} />
                       </div>
                       <span className={`${colorScheme.badge} px-3 py-1 rounded-full text-xs font-bold tracking-wide`}>
                         {course.code}
                       </span>
                     </div>
-                    <h3 className="text-lg font-bold text-gray-800 leading-tight">{course.name}</h3>
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white leading-tight">{course.name}</h3>
                   </div>
                   
                   <div className="p-6">
-                    <p className="text-sm text-gray-600 leading-relaxed mb-4 line-clamp-3">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4 line-clamp-3">
                       {course.description || 'No description available'}
                     </p>
                     
@@ -212,7 +228,7 @@ export default function CoursesPage() {
         {/* Modern Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg transform transition-all border border-gray-200 dark:border-gray-700">
               {/* Modal Header */}
               <div className="bg-gradient-to-r from-primary to-primary-dark p-6 rounded-t-2xl">
                 <div className="flex items-center justify-between">

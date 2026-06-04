@@ -8,6 +8,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +25,16 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authAPI.login(email, password);
+      const response = await authAPI.login(email, password, requiresTwoFactor ? twoFactorCode : null);
+      
+      // Check if 2FA is required
+      if (response.data.requiresTwoFactor) {
+        setRequiresTwoFactor(true);
+        setError('');
+        setLoading(false);
+        return;
+      }
+
       const { token, user } = response.data;
 
       if (user.role !== 'admin') {
@@ -156,9 +167,42 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {/* 2FA Code Input - Shows when 2FA is required */}
+              {requiresTwoFactor && (
+                <div className="animate-scale-in">
+                  <label className="block text-white text-sm font-semibold mb-2 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Authentication Code
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={twoFactorCode}
+                      onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full px-4 py-3 pl-11 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-primary-light focus:bg-white/15 transition text-center text-2xl tracking-widest font-mono"
+                      placeholder="000000"
+                      maxLength={6}
+                      required
+                      autoFocus
+                    />
+                    <svg className="w-5 h-5 text-primary-light absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <p className="text-white/60 text-xs mt-2 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    Enter the 6-digit code from your Google Authenticator app
+                  </p>
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (requiresTwoFactor && twoFactorCode.length !== 6)}
                 className="w-full bg-primary hover:bg-primary-dark text-white py-3 px-4 rounded-xl font-semibold transition shadow-lg shadow-primary/50 hover:shadow-primary/70 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
               >
                 {loading ? (

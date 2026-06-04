@@ -9,15 +9,18 @@ const { auth } = require('../middleware/auth');
 router.get('/', auth, async (req, res) => {
   try {
     const posts = await Post.find()
-      .populate('author', 'fullName email role')
+      .populate('author', 'fullName email role profilePicture')
       .sort({ isPinned: -1, createdAt: -1 }) // Pinned posts first, then by date
       .limit(50);
+
+    console.log('Feed API - Sample post author:', posts[0]?.author);
+    console.log('Feed API - Has profilePicture:', !!posts[0]?.author?.profilePicture);
 
     const formattedPosts = posts.map(post => ({
       id: post._id,
       author: {
         name: post.authorName || post.author?.fullName || 'Unknown User',
-        avatar: null,
+        avatar: post.author?.profilePicture || null,
         role: post.author?.role === 'admin' ? 'Admin' : post.author?.role === 'staff' ? 'Staff' : null
       },
       content: post.content,
@@ -31,6 +34,8 @@ router.get('/', auth, async (req, res) => {
         timestamp: getTimeAgo(comment.createdAt)
       }))
     }));
+
+    console.log('Feed API - Sample formatted post avatar:', formattedPosts[0]?.author?.avatar ? 'Has avatar' : 'No avatar');
 
     res.json(formattedPosts);
   } catch (error) {
@@ -132,7 +137,7 @@ router.post('/', auth, async (req, res) => {
       id: post._id,
       author: {
         name: post.authorName,
-        avatar: null,
+        avatar: user.profilePicture || null,
         role: user.role === 'admin' ? 'Admin' : user.role === 'staff' ? 'Staff' : null
       },
       content: post.content,

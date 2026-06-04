@@ -43,6 +43,7 @@ export const authAPI = {
   verify: (data) => api.post('/auth/verify', data),
   resendCode: (data) => api.post('/auth/resend-code', data),
   login: (data) => api.post('/auth/login', data),
+  logout: (deviceInfo) => api.post('/auth/logout', { deviceInfo }),
   getMe: () => api.get('/auth/me'),
   forgotPassword: (data) => api.post('/auth/forgot-password', data),
   resetPassword: (data) => api.post('/auth/reset-password', data),
@@ -88,6 +89,26 @@ export const profileAPI = {
   update: (data) => api.put('/profile', data),
   changePassword: (currentPassword, newPassword) => 
     api.put('/profile/change-password', { currentPassword, newPassword }),
+  getPasswordHash: () => api.get('/profile/password-hash'),
+  // Two-Factor Authentication
+  enable2FA: () => api.post('/profile/2fa/enable'),
+  verify2FA: (code) => api.post('/profile/2fa/verify', { code }),
+  disable2FA: (password) => api.post('/profile/2fa/disable', { password }),
+  getBackupCodes: () => api.get('/profile/2fa/backup-codes'),
+  regenerateBackupCodes: (password) => api.post('/profile/2fa/regenerate-backup-codes', { password }),
+  // Session Management
+  getSessions: () => api.get('/profile/sessions'),
+  terminateSession: (sessionId) => api.delete(`/profile/sessions/${sessionId}`),
+  terminateAllSessions: () => api.delete('/profile/sessions'),
+  // Login History
+  getLoginHistory: (page = 1, limit = 20, action = null) => {
+    let url = `/profile/login-history?page=${page}&limit=${limit}`;
+    if (action) url += `&action=${action}`;
+    return api.get(url);
+  },
+  // Data Privacy
+  requestDataExport: () => api.post('/profile/data-export'),
+  deleteAccount: (password, confirmation) => api.delete('/profile/account', { data: { password, confirmation } }),
 };
 
 export const adminAPI = {

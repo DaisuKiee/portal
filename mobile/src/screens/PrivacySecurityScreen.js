@@ -1,54 +1,219 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
   Switch,
-  StatusBar,
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../styles/theme';
+import { COLORS, FONTS } from '../styles/theme';
+import { profileAPI } from '../services/api';
+import BiometricAuth from '../utils/biometricAuth';
 
 const PrivacySecurityScreen = ({ navigation }) => {
-  const [profileVisibility, setProfileVisibility] = useState(true);
-  const [showEmail, setShowEmail] = useState(false);
-  const [showPhone, setShowPhone] = useState(false);
-  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
+  // Password Change States
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [changing, setChanging] = useState(false);
 
-  const handleToggle = (setter, value, name) => {
-    setter(value);
-    Toast.show({
-      type: 'success',
-      text1: value ? 'Enabled' : 'Disabled',
-      text2: `${name} ${value ? 'enabled' : 'disabled'}`,
-      position: 'top',
-      topOffset: 60,
-      visibilityTime: 2000,
-    });
+  // Security Settings States
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [loginAlertsEnabled, setLoginAlertsEnabled] = useState(true);
+  const [dataEncryptionEnabled, setDataEncryptionEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState(null);
+
+  useEffect(() => {
+    loadSecuritySettings();
+  }, []);
+
+  const loadSecuritySettings = async () => {
+    try {
+      const userJson = await AsyncStorage.getItem('user');
+      if (userJson) {
+        const user = JSON.parse(userJson);
+        setUserData(user);
+        setTwoFactorEnabled(user.twoFactorEnabled || false);
+      }
+
+      // Load other settings from AsyncStorage
+      const biometric = await AsyncStorage.getItem('biometricEnabled');
+      const loginAlerts = await AsyncStorage.getItem('loginAlertsEnabled');
+      const dataEncryption = await AsyncStorage.getItem('dataEncryptionEnabled');
+
+      if (biometric !== null) setBiometricEnabled(biometric === 'true');
+      if (loginAlerts !== null) setLoginAlertsEnabled(loginAlerts === 'true');
+      if (dataEncryption !== null) setDataEncryptionEnabled(dataEncryption === 'true');
+    } catch (error) {
+      console.error('Error loading security settings:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleClearCache = () => {
-    Alert.alert(
-      'Clear Cache',
-      'Are you sure you want to clear all cached data?',
+  const handleChangePassword = async () => {
+    try {
+      // Validation
+      if (!currentPassword) {
+        Toast.show({
+          type: 'error',
+          text1: 'Validation Error',
+          text2: 'Current password is required',
+          position: 'top',
+          topOffset: 60,
+        });
+        return;
+      }
+
+      if (!newPassword) {
+        Toast.show({
+          type: 'error',
+          text1: 'Validation Error',
+          text2: 'New password is required',
+          position: 'top',
+          topOffset: 60,
+        });
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        Toast.show({
+          type: 'error',
+          text1: 'Validation Error',
+          text2: 'New password must be at least 6 characters',
+          position: 'top',
+          topOffset: 60,
+        });
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        Toast.show({
+          type: 'error',
+          text1: 'Validation Error',
+          text2: 'Passwords do not match',
+          position: 'top',
+          topOffset: 60,
+        });
+        return;
+      }
+
+      setChanging(true);
+
+      await profileAPI.changePassword(currentPassword, newPassword);
+
+      // Update biometric credentials if enabled
+      try {
+        const userJson = await AsyncStorage.getItem('user');
+        if (userJson) {
+          const user = JSON.parse(userJson);
+          await BiometricAuth.updateBiometricCredentials(user.email, newPassword);
+        }
+      } catch (bioError) {
+        console.log('Biometric credentials update skipped:', bioError.message);
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Password changed successfully',
+        position: 'top',
+        topOffset: 60,
+      });
+
+      // Clear fields
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      console.error('Change password error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.message || 'Failed to change password',
+        position: 'top',
+        topOffset: 60,
+      });
+    } finally {
+      setChanging(false);
+    }
+  };
+
+  const handleToggle2FA = async (value) => {
+    if (value) {
+      // Enable 2FA - Navigate to setup screen
+      navigation.navigate('TwoFactorSetup', { isEnabling: true });
+    } else {
+      // Disable 2FA
+      Alert.alert(
+        'Disable Two-Factor Authentication',
+        'Are you sure you want to disable two-factor authentication? This will make your account less secure. You will need to enter your password to confirm.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Disable',
+            style: 'destructive',
+            onPress: () => promptPasswordForDisable2FA(),
+          },
+        ]
+      );
+    }
+  };
+
+  const promptPasswordForDisable2FA = () => {
+    Alert.prompt(
+      'Enter Password',
+      'Please enter your password to disable 2FA',
       [
-        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Confirm',
+          onPress: async (password) => {
+            if (!password) {
+              Toast.show({
+                type: 'error',
+                text1: 'Password Required',
+                text2: 'Please enter your password',
+                position: 'top',
+                topOffset: 60,
+              });
+              return;
+            }
+
             try {
-              // Clear specific cache items (not auth tokens)
-              await AsyncStorage.removeItem('@admission_form_draft');
+              await profileAPI.disable2FA(password);
+              setTwoFactorEnabled(false);
+              
+              // Update user data
+              const userJson = await AsyncStorage.getItem('user');
+              if (userJson) {
+                const user = JSON.parse(userJson);
+                user.twoFactorEnabled = false;
+                await AsyncStorage.setItem('user', JSON.stringify(user));
+              }
+
               Toast.show({
                 type: 'success',
-                text1: 'Cache Cleared',
-                text2: 'All cached data has been removed',
+                text1: 'Success',
+                text2: 'Two-factor authentication disabled',
                 position: 'top',
                 topOffset: 60,
               });
@@ -56,7 +221,297 @@ const PrivacySecurityScreen = ({ navigation }) => {
               Toast.show({
                 type: 'error',
                 text1: 'Error',
-                text2: 'Failed to clear cache',
+                text2: error.response?.data?.message || 'Failed to disable 2FA',
+                position: 'top',
+                topOffset: 60,
+              });
+            }
+          },
+        },
+      ],
+      'secure-text'
+    );
+  };
+
+  const handleToggleBiometric = async (value) => {
+    try {
+      if (value) {
+        // Enable biometric
+        const supported = await BiometricAuth.isBiometricSupported();
+        const enrolled = await BiometricAuth.isBiometricEnrolled();
+        
+        if (!supported) {
+          Toast.show({
+            type: 'error',
+            text1: 'Not Supported',
+            text2: 'Biometric authentication is not supported on this device',
+            position: 'top',
+            topOffset: 60,
+          });
+          return;
+        }
+        
+        if (!enrolled) {
+          Toast.show({
+            type: 'error',
+            text1: 'Not Enrolled',
+            text2: 'Please set up fingerprint or Face ID in your device settings first',
+            position: 'top',
+            topOffset: 60,
+          });
+          return;
+        }
+        
+        // Prompt for credentials to save
+        Alert.prompt(
+          'Enter Password',
+          'Please enter your password to enable biometric login',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            },
+            {
+              text: 'Enable',
+              onPress: async (password) => {
+                if (!password) {
+                  Toast.show({
+                    type: 'error',
+                    text1: 'Password Required',
+                    text2: 'Please enter your password',
+                    position: 'top',
+                    topOffset: 60,
+                  });
+                  return;
+                }
+                
+                try {
+                  // Get user email
+                  const userJson = await AsyncStorage.getItem('user');
+                  if (!userJson) {
+                    throw new Error('User not found');
+                  }
+                  
+                  const user = JSON.parse(userJson);
+                  
+                  // Enable biometric with credentials
+                  await BiometricAuth.enableBiometricLogin(user.email, password);
+                  
+                  setBiometricEnabled(true);
+                  await AsyncStorage.setItem('biometricEnabled', 'true');
+                  
+                  Toast.show({
+                    type: 'success',
+                    text1: 'Biometric Enabled',
+                    text2: 'You can now use biometric to login',
+                    position: 'top',
+                    topOffset: 60,
+                  });
+                } catch (error) {
+                  console.error('Error enabling biometric:', error);
+                  Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: error.message || 'Failed to enable biometric login',
+                    position: 'top',
+                    topOffset: 60,
+                  });
+                }
+              },
+            },
+          ],
+          'secure-text'
+        );
+      } else {
+        // Disable biometric
+        try {
+          await BiometricAuth.disableBiometricLogin();
+          setBiometricEnabled(false);
+          await AsyncStorage.setItem('biometricEnabled', 'false');
+          
+          Toast.show({
+            type: 'success',
+            text1: 'Biometric Disabled',
+            text2: 'Biometric login has been disabled',
+            position: 'top',
+            topOffset: 60,
+          });
+        } catch (error) {
+          console.error('Error disabling biometric:', error);
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'Failed to disable biometric login',
+            position: 'top',
+            topOffset: 60,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling biometric:', error);
+    }
+  };
+
+  const handleToggleLoginAlerts = async (value) => {
+    try {
+      setLoginAlertsEnabled(value);
+      await AsyncStorage.setItem('loginAlertsEnabled', value.toString());
+      Toast.show({
+        type: 'success',
+        text1: value ? 'Login Alerts Enabled' : 'Login Alerts Disabled',
+        text2: value ? 'You will receive alerts for new logins' : 'Login alerts disabled',
+        position: 'top',
+        topOffset: 60,
+      });
+    } catch (error) {
+      console.error('Error toggling login alerts:', error);
+    }
+  };
+
+  const handleToggleDataEncryption = async (value) => {
+    try {
+      setDataEncryptionEnabled(value);
+      await AsyncStorage.setItem('dataEncryptionEnabled', value.toString());
+      Toast.show({
+        type: 'success',
+        text1: value ? 'Data Encryption Enabled' : 'Data Encryption Disabled',
+        text2: value ? 'Your data will be encrypted at rest' : 'Data encryption disabled',
+        position: 'top',
+        topOffset: 60,
+      });
+    } catch (error) {
+      console.error('Error toggling data encryption:', error);
+    }
+  };
+
+  const handleViewActiveSessions = () => {
+    navigation.navigate('ActiveSessions');
+  };
+
+  const handleViewLoginHistory = () => {
+    navigation.navigate('LoginHistory');
+  };
+
+  const handleViewBackupCodes = async () => {
+    try {
+      const response = await profileAPI.getBackupCodes();
+      const codes = response.data.backupCodes;
+      
+      const unusedCodes = codes.filter(bc => !bc.used);
+      const usedCodes = codes.filter(bc => bc.used);
+      
+      let message = 'Unused Codes:\n';
+      unusedCodes.forEach((bc, index) => {
+        message += `${index + 1}. ${bc.code}\n`;
+      });
+      
+      if (usedCodes.length > 0) {
+        message += `\n${usedCodes.length} code(s) already used`;
+      }
+      
+      Alert.alert(
+        'Backup Codes',
+        message,
+        [
+          {
+            text: 'Regenerate Codes',
+            onPress: () => handleRegenerateBackupCodes(),
+          },
+          {
+            text: 'Close',
+            style: 'cancel',
+          },
+        ]
+      );
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.message || 'Failed to load backup codes',
+        position: 'top',
+        topOffset: 60,
+      });
+    }
+  };
+
+  const handleRegenerateBackupCodes = () => {
+    Alert.prompt(
+      'Enter Password',
+      'Please enter your password to regenerate backup codes',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Regenerate',
+          onPress: async (password) => {
+            if (!password) {
+              Toast.show({
+                type: 'error',
+                text1: 'Password Required',
+                text2: 'Please enter your password',
+                position: 'top',
+                topOffset: 60,
+              });
+              return;
+            }
+
+            try {
+              const response = await profileAPI.regenerateBackupCodes(password);
+              const newCodes = response.data.backupCodes;
+              
+              let message = 'New Backup Codes:\n\n';
+              newCodes.forEach((code, index) => {
+                message += `${index + 1}. ${code}\n`;
+              });
+              message += '\nSave these codes in a safe place!';
+              
+              Alert.alert('Backup Codes Regenerated', message);
+            } catch (error) {
+              Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: error.response?.data?.message || 'Failed to regenerate codes',
+                position: 'top',
+                topOffset: 60,
+              });
+            }
+          },
+        },
+      ],
+      'secure-text'
+    );
+  };
+
+  const handleDownloadData = () => {
+    Alert.alert(
+      'Download Your Data',
+      'We will prepare a copy of your data and send it to your email address. This may take a few minutes.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Request Download',
+          onPress: async () => {
+            try {
+              const response = await profileAPI.requestDataExport();
+              Toast.show({
+                type: 'success',
+                text1: 'Data Export Requested',
+                text2: `Your data will be sent to ${response.data.email}`,
+                position: 'top',
+                topOffset: 60,
+                visibilityTime: 5000,
+              });
+            } catch (error) {
+              console.error('Data export error:', error);
+              Toast.show({
+                type: 'error',
+                text1: 'Export Failed',
+                text2: error.response?.data?.message || 'Failed to export data',
                 position: 'top',
                 topOffset: 60,
               });
@@ -70,246 +525,487 @@ const PrivacySecurityScreen = ({ navigation }) => {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
+      'Are you sure you want to delete your account? This action cannot be undone. All your data will be permanently deleted.',
       [
-        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Continue',
           style: 'destructive',
-          onPress: () => {
-            Toast.show({
-              type: 'info',
-              text1: 'Contact Support',
-              text2: 'Please contact support to delete your account',
-              position: 'top',
-              topOffset: 60,
-            });
-          },
+          onPress: () => promptForAccountDeletion(),
         },
       ]
     );
   };
 
+  const promptForAccountDeletion = () => {
+    Alert.prompt(
+      'Enter Password',
+      'Please enter your password to confirm account deletion',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Next',
+          style: 'destructive',
+          onPress: (password) => {
+            if (!password) {
+              Toast.show({
+                type: 'error',
+                text1: 'Password Required',
+                text2: 'Please enter your password',
+                position: 'top',
+                topOffset: 60,
+              });
+              return;
+            }
+            promptForConfirmationText(password);
+          },
+        },
+      ],
+      'secure-text'
+    );
+  };
+
+  const promptForConfirmationText = (password) => {
+    Alert.prompt(
+      'Final Confirmation',
+      'Type "DELETE MY ACCOUNT" to confirm permanent deletion',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: async (confirmation) => {
+            if (confirmation !== 'DELETE MY ACCOUNT') {
+              Toast.show({
+                type: 'error',
+                text1: 'Confirmation Failed',
+                text2: 'Please type exactly: DELETE MY ACCOUNT',
+                position: 'top',
+                topOffset: 60,
+              });
+              return;
+            }
+
+            try {
+              const response = await profileAPI.deleteAccount(password, confirmation);
+              
+              // Clear all local data
+              await AsyncStorage.clear();
+              
+              // Clear biometric credentials
+              try {
+                await BiometricAuth.disableBiometricLogin();
+              } catch (bioError) {
+                console.log('Biometric cleanup skipped:', bioError.message);
+              }
+
+              Alert.alert(
+                'Account Deleted',
+                `Your account has been permanently deleted. A confirmation email has been sent to ${response.data.email}`,
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      // Navigate to login screen
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'Login' }],
+                      });
+                    },
+                  },
+                ]
+              );
+            } catch (error) {
+              console.error('Delete account error:', error);
+              Toast.show({
+                type: 'error',
+                text1: 'Deletion Failed',
+                text2: error.response?.data?.message || 'Failed to delete account',
+                position: 'top',
+                topOffset: 60,
+              });
+            }
+          },
+        },
+      ],
+      'plain-text'
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Privacy & Security</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.secondary} />
-      
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Privacy & Security</Text>
-        <View style={styles.placeholder} />
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Privacy Settings */}
-        <View style={styles.sectionCard}>
+        {/* Change Password Section */}
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="eye-outline" size={24} color={COLORS.primary} />
-            <Text style={styles.sectionTitle}>Privacy</Text>
+            <Ionicons name="lock-closed" size={24} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>Change Password</Text>
           </View>
+          <Text style={styles.sectionDesc}>
+            Update your password to keep your account secure
+          </Text>
+
+          {/* Current Password */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Current Password</Text>
+            <View style={styles.passwordInput}>
+              <TextInput
+                style={styles.passwordField}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                placeholder="Enter current password"
+                placeholderTextColor={COLORS.mediumGray}
+                secureTextEntry={!showCurrentPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showCurrentPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={COLORS.mediumGray}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* New Password */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>New Password</Text>
+            <View style={styles.passwordInput}>
+              <TextInput
+                style={styles.passwordField}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="Enter new password"
+                placeholderTextColor={COLORS.mediumGray}
+                secureTextEntry={!showNewPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => setShowNewPassword(!showNewPassword)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showNewPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={COLORS.mediumGray}
+                />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.inputHint}>At least 6 characters</Text>
+          </View>
+
+          {/* Confirm Password */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Confirm New Password</Text>
+            <View style={styles.passwordInput}>
+              <TextInput
+                style={styles.passwordField}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm new password"
+                placeholderTextColor={COLORS.mediumGray}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={COLORS.mediumGray}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Change Password Button */}
+          <TouchableOpacity
+            style={styles.changeButton}
+            onPress={handleChangePassword}
+            disabled={changing}
+            activeOpacity={0.7}
+          >
+            {changing ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <Text style={styles.changeButtonText}>Change Password</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Security Tips */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="shield-checkmark" size={24} color={COLORS.success} />
+            <Text style={styles.sectionTitle}>Security Tips</Text>
+          </View>
+          
+          <View style={styles.tipsList}>
+            <View style={styles.tipItem}>
+              <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+              <Text style={styles.tipText}>Use a strong, unique password</Text>
+            </View>
+            <View style={styles.tipItem}>
+              <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+              <Text style={styles.tipText}>Don't share your password with anyone</Text>
+            </View>
+            <View style={styles.tipItem}>
+              <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+              <Text style={styles.tipText}>Change your password regularly</Text>
+            </View>
+            <View style={styles.tipItem}>
+              <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+              <Text style={styles.tipText}>Log out from shared devices</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Two-Factor Authentication */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="shield-half" size={24} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>Two-Factor Authentication</Text>
+          </View>
+          <Text style={styles.sectionDesc}>
+            Add an extra layer of security by requiring a code from your authenticator app
+          </Text>
 
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: COLORS.primary + '15' }]}>
-                <Ionicons name="person-outline" size={22} color={COLORS.primary} />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>Profile Visibility</Text>
-                <Text style={styles.settingDesc}>Make your profile visible to others</Text>
+              <Ionicons name="phone-portrait" size={24} color={COLORS.secondary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>Authenticator App</Text>
+                <Text style={styles.settingDesc}>
+                  {twoFactorEnabled ? 'Enabled' : 'Use an app to generate codes'}
+                </Text>
               </View>
             </View>
             <Switch
-              value={profileVisibility}
-              onValueChange={(value) => handleToggle(setProfileVisibility, value, 'Profile visibility')}
-              trackColor={{ false: COLORS.lightGray, true: COLORS.primary + '50' }}
-              thumbColor={profileVisibility ? COLORS.primary : COLORS.mediumGray}
+              value={twoFactorEnabled}
+              onValueChange={handleToggle2FA}
+              trackColor={{ false: COLORS.lightGray, true: COLORS.primary }}
+              thumbColor={COLORS.white}
             />
           </View>
 
-          <View style={styles.divider} />
+          {twoFactorEnabled && (
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={handleViewBackupCodes}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.linkButtonText}>View Backup Codes</Text>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
 
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: COLORS.info + '15' }]}>
-                <Ionicons name="mail-outline" size={22} color={COLORS.info} />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>Show Email</Text>
-                <Text style={styles.settingDesc}>Display email on your profile</Text>
-              </View>
-            </View>
-            <Switch
-              value={showEmail}
-              onValueChange={(value) => handleToggle(setShowEmail, value, 'Show email')}
-              trackColor={{ false: COLORS.lightGray, true: COLORS.primary + '50' }}
-              thumbColor={showEmail ? COLORS.primary : COLORS.mediumGray}
-            />
+        {/* Biometric Authentication */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="finger-print" size={24} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>Biometric Authentication</Text>
           </View>
-
-          <View style={styles.divider} />
+          <Text style={styles.sectionDesc}>
+            Use fingerprint or face recognition to quickly and securely access your account
+          </Text>
 
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: COLORS.success + '15' }]}>
-                <Ionicons name="call-outline" size={22} color={COLORS.success} />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>Show Phone Number</Text>
-                <Text style={styles.settingDesc}>Display phone on your profile</Text>
+              <Ionicons name="finger-print-outline" size={24} color={COLORS.secondary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>Fingerprint / Face ID</Text>
+                <Text style={styles.settingDesc}>
+                  {biometricEnabled ? 'Enabled' : 'Quick login with biometrics'}
+                </Text>
               </View>
             </View>
             <Switch
-              value={showPhone}
-              onValueChange={(value) => handleToggle(setShowPhone, value, 'Show phone')}
-              trackColor={{ false: COLORS.lightGray, true: COLORS.primary + '50' }}
-              thumbColor={showPhone ? COLORS.primary : COLORS.mediumGray}
+              value={biometricEnabled}
+              onValueChange={handleToggleBiometric}
+              trackColor={{ false: COLORS.lightGray, true: COLORS.primary }}
+              thumbColor={COLORS.white}
             />
           </View>
         </View>
 
-        {/* Security Settings */}
-        <View style={styles.sectionCard}>
+        {/* Login Security */}
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="shield-checkmark-outline" size={24} color={COLORS.success} />
-            <Text style={styles.sectionTitle}>Security</Text>
+            <Ionicons name="log-in" size={24} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>Login Security</Text>
           </View>
-
-          <TouchableOpacity 
-            style={styles.actionItem} 
-            activeOpacity={0.7}
-            onPress={() => {
-              Toast.show({
-                type: 'info',
-                text1: 'Change Password',
-                text2: 'Feature coming soon',
-                position: 'top',
-                topOffset: 60,
-              });
-            }}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: COLORS.primary + '15' }]}>
-              <Ionicons name="key-outline" size={22} color={COLORS.primary} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Change Password</Text>
-              <Text style={styles.settingDesc}>Update your account password</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
+          <Text style={styles.sectionDesc}>
+            Monitor and manage your login activity
+          </Text>
 
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: COLORS.warning + '15' }]}>
-                <Ionicons name="finger-print-outline" size={22} color={COLORS.warning} />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>Two-Factor Authentication</Text>
-                <Text style={styles.settingDesc}>Add extra security to your account</Text>
+              <Ionicons name="notifications-outline" size={24} color={COLORS.secondary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>Login Alerts</Text>
+                <Text style={styles.settingDesc}>
+                  {loginAlertsEnabled ? 'Get notified of new logins' : 'Disabled'}
+                </Text>
               </View>
             </View>
             <Switch
-              value={twoFactorAuth}
-              onValueChange={(value) => handleToggle(setTwoFactorAuth, value, 'Two-factor authentication')}
-              trackColor={{ false: COLORS.lightGray, true: COLORS.primary + '50' }}
-              thumbColor={twoFactorAuth ? COLORS.primary : COLORS.mediumGray}
+              value={loginAlertsEnabled}
+              onValueChange={handleToggleLoginAlerts}
+              trackColor={{ false: COLORS.lightGray, true: COLORS.primary }}
+              thumbColor={COLORS.white}
             />
           </View>
 
-          <View style={styles.divider} />
-
-          <TouchableOpacity style={styles.actionItem} activeOpacity={0.7}>
-            <View style={[styles.iconContainer, { backgroundColor: COLORS.info + '15' }]}>
-              <Ionicons name="time-outline" size={22} color={COLORS.info} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Login History</Text>
-              <Text style={styles.settingDesc}>View your recent login activity</Text>
-            </View>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={handleViewActiveSessions}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="desktop-outline" size={20} color={COLORS.secondary} />
+            <Text style={styles.linkButtonText}>Active Sessions</Text>
             <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
           </TouchableOpacity>
 
-          <View style={styles.divider} />
-
-          <TouchableOpacity style={styles.actionItem} activeOpacity={0.7}>
-            <View style={[styles.iconContainer, { backgroundColor: COLORS.primary + '15' }]}>
-              <Ionicons name="phone-portrait-outline" size={22} color={COLORS.primary} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Active Sessions</Text>
-              <Text style={styles.settingDesc}>Manage your active devices</Text>
-            </View>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={handleViewLoginHistory}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="time-outline" size={20} color={COLORS.secondary} />
+            <Text style={styles.linkButtonText}>Login History</Text>
             <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
           </TouchableOpacity>
         </View>
 
-        {/* Data Management */}
-        <View style={styles.sectionCard}>
+        {/* Data Privacy */}
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="server-outline" size={24} color={COLORS.warning} />
-            <Text style={styles.sectionTitle}>Data Management</Text>
+            <Ionicons name="document-lock" size={24} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>Data Privacy</Text>
+          </View>
+          <Text style={styles.sectionDesc}>
+            Control how your data is stored and used
+          </Text>
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="lock-closed-outline" size={24} color={COLORS.secondary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>Data Encryption</Text>
+                <Text style={styles.settingDesc}>
+                  {dataEncryptionEnabled ? 'Your data is encrypted' : 'Disabled'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={dataEncryptionEnabled}
+              onValueChange={handleToggleDataEncryption}
+              trackColor={{ false: COLORS.lightGray, true: COLORS.primary }}
+              thumbColor={COLORS.white}
+            />
           </View>
 
-          <TouchableOpacity style={styles.actionItem} activeOpacity={0.7}>
-            <View style={[styles.iconContainer, { backgroundColor: COLORS.info + '15' }]}>
-              <Ionicons name="download-outline" size={22} color={COLORS.info} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Download Your Data</Text>
-              <Text style={styles.settingDesc}>Get a copy of your information</Text>
-            </View>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={handleDownloadData}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="download-outline" size={20} color={COLORS.secondary} />
+            <Text style={styles.linkButtonText}>Download Your Data</Text>
             <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
           </TouchableOpacity>
 
-          <View style={styles.divider} />
-
-          <TouchableOpacity 
-            style={styles.actionItem} 
+          <TouchableOpacity
+            style={styles.linkButton}
             activeOpacity={0.7}
-            onPress={handleClearCache}
           >
-            <View style={[styles.iconContainer, { backgroundColor: COLORS.warning + '15' }]}>
-              <Ionicons name="trash-outline" size={22} color={COLORS.warning} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Clear Cache</Text>
-              <Text style={styles.settingDesc}>Remove temporary data</Text>
-            </View>
+            <Ionicons name="document-text-outline" size={20} color={COLORS.secondary} />
+            <Text style={styles.linkButtonText}>Privacy Policy</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="shield-outline" size={20} color={COLORS.secondary} />
+            <Text style={styles.linkButtonText}>Terms of Service</Text>
             <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
           </TouchableOpacity>
         </View>
 
         {/* Danger Zone */}
-        <View style={styles.dangerCard}>
+        <View style={[styles.section, styles.dangerSection]}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="warning-outline" size={24} color={COLORS.error} />
+            <Ionicons name="warning" size={24} color={COLORS.error} />
             <Text style={[styles.sectionTitle, { color: COLORS.error }]}>Danger Zone</Text>
           </View>
+          <Text style={styles.sectionDesc}>
+            Irreversible actions that affect your account
+          </Text>
 
-          <TouchableOpacity 
-            style={styles.actionItem} 
-            activeOpacity={0.7}
+          <TouchableOpacity
+            style={styles.dangerButton}
             onPress={handleDeleteAccount}
+            activeOpacity={0.7}
           >
-            <View style={[styles.iconContainer, { backgroundColor: COLORS.error + '15' }]}>
-              <Ionicons name="close-circle-outline" size={22} color={COLORS.error} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={[styles.settingTitle, { color: COLORS.error }]}>Delete Account</Text>
-              <Text style={styles.settingDesc}>Permanently delete your account</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.mediumGray} />
+            <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+            <Text style={styles.dangerButtonText}>Delete Account</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.error} />
           </TouchableOpacity>
         </View>
 
+        {/* Bottom Spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
@@ -319,17 +1015,18 @@ const PrivacySecurityScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.ultraLightGray,
+    backgroundColor: COLORS.white,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.secondary,
     paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: SIZES.md,
-    ...SHADOWS.medium,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.lightGray,
   },
   backButton: {
     width: 40,
@@ -338,84 +1035,164 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
-    color: COLORS.white,
+    fontSize: 18,
+    color: COLORS.secondary,
     ...FONTS.bold,
   },
-  placeholder: {
+  headerSpacer: {
     width: 40,
   },
   content: {
     flex: 1,
   },
-  sectionCard: {
-    backgroundColor: COLORS.white,
-    marginTop: 12,
-    paddingVertical: 20,
-    paddingHorizontal: SIZES.md,
-    ...SHADOWS.small,
-  },
-  dangerCard: {
-    backgroundColor: COLORS.error + '05',
-    marginTop: 12,
-    paddingVertical: 20,
-    paddingHorizontal: SIZES.md,
-    borderWidth: 1,
-    borderColor: COLORS.error + '20',
+  section: {
+    padding: 20,
+    borderBottomWidth: 8,
+    borderBottomColor: COLORS.ultraLightGray,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    gap: 10,
+    gap: 12,
+    marginBottom: 8,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     color: COLORS.secondary,
     ...FONTS.bold,
+  },
+  sectionDesc: {
+    fontSize: 14,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
+    marginBottom: 24,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: COLORS.secondary,
+    ...FONTS.semiBold,
+    marginBottom: 8,
+  },
+  passwordInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 10,
+  },
+  passwordField: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: COLORS.secondary,
+    ...FONTS.regular,
+  },
+  eyeButton: {
+    padding: 12,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+    ...FONTS.regular,
+    marginTop: 4,
+  },
+  changeButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  changeButtonText: {
+    fontSize: 16,
+    color: COLORS.white,
+    ...FONTS.semiBold,
+  },
+  tipsList: {
+    gap: 16,
+  },
+  tipItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.secondary,
+    ...FONTS.regular,
+    lineHeight: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  actionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.ultraLightGray,
   },
   settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 12,
   },
-  iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  settingContent: {
+  settingInfo: {
     flex: 1,
   },
   settingTitle: {
     fontSize: 16,
     color: COLORS.secondary,
     ...FONTS.semiBold,
-    marginBottom: 3,
+    marginBottom: 2,
   },
   settingDesc: {
     fontSize: 13,
     color: COLORS.mediumGray,
     ...FONTS.regular,
   },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.lightGray,
-    marginVertical: 16,
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.ultraLightGray,
+  },
+  linkButtonText: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.secondary,
+    ...FONTS.regular,
+  },
+  dangerSection: {
+    backgroundColor: '#FFF5F5',
+  },
+  dangerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.white,
+  },
+  dangerButtonText: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.error,
+    ...FONTS.semiBold,
   },
 });
 
